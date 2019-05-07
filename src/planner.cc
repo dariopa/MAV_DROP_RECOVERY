@@ -197,9 +197,8 @@ bool TrajectoryPlanner::takeoff() {
     return false;
   }
   // only conduce takeoff when really in takeoff area, which is somewhere around 1 meters distant from the startpoint
-  if (sqrt(pow(current_position_.translation().x() - startpoint_.translation().x(), 2) +
-           pow(current_position_.translation().y() - startpoint_.translation().y(), 2) +
-           pow(current_position_.translation().z() - startpoint_.translation().z(), 2)) > 1.0) { 
+  if (abs(waypoint_takeoff.translation().x() - startpoint_.translation().x()) > 1.0 ||
+      abs(waypoint_takeoff.translation().y() - startpoint_.translation().y()) > 1.0 ) { 
     ROS_WARN("You're not in the takeoff region. Takeoff can't be executed - not executing!");
     return false;
   }
@@ -214,8 +213,8 @@ bool TrajectoryPlanner::takeoff() {
 bool TrajectoryPlanner::traverse() {
   Eigen::Affine3d waypoint_traverse = current_position_; 
 
-  // check if you're high enough for traversation
-  if (abs(waypoint_traverse.translation().z() - waypoint_1_z_) > 0.5) {
+  // check if you're high enough for traversation, i.e. if you're above safety altitude
+  if (waypoint_traverse.translation().z() < startpoint_.translation().z() + safety_altitude_) {
     ROS_WARN("You're not on the correct traversation height - not executing!");
     return false;
   }
@@ -231,22 +230,36 @@ bool TrajectoryPlanner::traverse() {
 bool TrajectoryPlanner::release() {
   Eigen::Affine3d waypoint_release = current_position_;
 
+  // only conduce release when really in release area, which is somewhere around 1 meters distant from the release point
+  if (abs(waypoint_release.translation().x() - waypoint_2_x_) > 1.0 ||
+      abs(waypoint_release.translation().y() - waypoint_2_y_) > 1.0 ) { 
+    ROS_WARN("You're not in the release region. Release can't be executed - not executing!");
+    return false;
+  }
   // if checks are all good, then release
-  waypoint_release.translation().z() = waypoint_3_z_;
+  waypoint_release.translation().z() = waypoint_3_z_ + height_box_antennaplate_;
   checkpoint_ = waypoint_release;
   trajectoryPlannerTwoVertices(waypoint_release, v_max_*0.2, a_max_);
   return true;
 }
 
 bool TrajectoryPlanner::recoveryNet(bool execute) {
-  int direction_change = 1;
+  Eigen::Affine3d waypoint_recovery = current_position_;
+  // only conduce recovery when really in recovery area, which is somewhere around 1 meters distant from the recovery point
+  if (abs(waypoint_recovery.translation().x() - waypoint_2_x_) > 1.0 ||
+      abs(waypoint_recovery.translation().y() - waypoint_2_y_) > 1.0 ) { 
+    ROS_WARN("You're not in the recovery region. Recovery can't be executed - not executing!");
+    return false;
+  }
 
-  for (int counter = 0; counter <= 3; counter++) {
+  // if checks are all good, then recover
+  int direction_change = 1;
+  for (int counter = 0; counter <= 2; counter++) {
     // First slightly return on the x-axis
     Eigen::Affine3d waypoint_one = current_position_;
     waypoint_one.translation().x() -= approach_distance_;
     waypoint_one.translation().y() += (net_recovery_shift_ * counter * direction_change);
-    trajectoryPlannerTwoVertices(waypoint_one, v_max_ * 0.5, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_one, v_max_ * 0.3, a_max_);
     if (execute) {
       executeTrajectory();
       ROS_WARN("Slightly stepping back on traversation path.");
@@ -255,7 +268,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
 
     // Then, go down on pickup height
     Eigen::Affine3d waypoint_two = waypoint_one;
-    waypoint_two.translation().z() = waypoint_3_z_ + 0.3;
+    waypoint_two.translation().z() = waypoint_3_z_ + height_box_hook_;
     trajectoryPlannerTwoVertices(waypoint_two, v_max_ * 0.3, a_max_);
     if (execute) {
       executeTrajectory();
@@ -275,7 +288,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
 
     // Elevate with GPS box
     Eigen::Affine3d waypoint_four = waypoint_three;
-    waypoint_four.translation().z() = waypoint_1_z_/2;
+    waypoint_four.translation().z() = waypoint_3_z_ + 1.5;
     trajectoryPlannerTwoVertices(waypoint_four, v_max_ * 0.3, a_max_);
     if (execute) {
       executeTrajectory();
@@ -291,16 +304,24 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
   waypoint_five.translation().x() = waypoint_2_x_;
   waypoint_five.translation().y() = waypoint_2_y_;
   waypoint_five.translation().z() = waypoint_1_z_;
-  trajectoryPlannerTwoVertices(waypoint_five, v_max_ * 0.5, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_five, v_max_ * 0.3, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("Elevating.");
+    ROS_WARN("Getting in position for homecoming.");
     checkPosition(waypoint_five);
   }
   return true;
 }
 
 bool TrajectoryPlanner::recoveryMagnet(bool execute) {
+  Eigen::Affine3d waypoint_recovery = current_position_;
+  // only conduce recovery when really in recovery area, which is somewhere around 1 meters distant from the recovery point
+  if (abs(waypoint_recovery.translation().x() - waypoint_2_x_) > 1.0 ||
+      abs(waypoint_recovery.translation().y() - waypoint_2_y_) > 1.0 ) { 
+    ROS_WARN("You're not in the recovery region. Recovery can't be executed - not executing!");
+    return false;
+  }
+  // if checks are all good, then release
   // Pickup with magnet: first descend
   Eigen::Affine3d waypoint_one = current_position_;
   waypoint_one.translation().z() = waypoint_3_z_ + 0.3;
@@ -332,10 +353,10 @@ bool TrajectoryPlanner::homecoming() {
   Eigen::Affine3d waypoint_homecoming_end;
   waypoint_homecoming_end.translation().x() = startpoint_.translation().x();
   waypoint_homecoming_end.translation().y() = startpoint_.translation().y();
-  waypoint_homecoming_end.translation().z() = (waypoint_1_z_+startpoint_.translation().z()) / 2;
+  waypoint_homecoming_end.translation().z() = (startpoint_.translation().z() + 2.0);
 
   checkpoint_ = waypoint_homecoming_end;
-  trajectoryPlannerThreeVertices(waypoint_homecoming_middle, waypoint_homecoming_end, v_max_, a_max_);
+  trajectoryPlannerThreeVertices(waypoint_homecoming_middle, waypoint_homecoming_end, v_max_ * 0.5, a_max_);
   return true;
 }
 
