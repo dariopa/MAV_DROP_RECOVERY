@@ -1,0 +1,67 @@
+###########################################
+WAYPOINT NAVIGATOR
+###########################################
+navigator/paths
+
+# In a first command window, type: 
+roslaunch waypoint_navigator mav_sim.launch
+
+# In a second command window, type: 
+roslaunch waypoint_navigator waypoint_navigator.launch
+
+# In a third command window, type: 
+# Define your waypoints in the yaml-file. 
+cd ~/catkin_ws/src/waypoint_
+rosservice call /firefly/visualize_path
+
+# Still in the third command window, type: 
+rosservice call /firefly/execute_path
+
+###########################################
+DYNAMIXEL
+###########################################
+
+rosrun dynamixel_workbench_controllers find_dynamixel /dev/ttyUSB0
+
+GUI manager:
+roslaunch dynamixel_workbench_single_manager single_manager.launch
+
+GUI:
+rosrun dynamixel_workbench_single_manager_gui dynamixel_workbench_single_manager_gui
+
+Dynamixel Controller:
+roslaunch dynamixel_workbench_controllers dynamixel_controllers.launch
+
+
+  <arg name="usb_port"                default="/dev/ttyUSB0"/>
+  <arg name="dxl_baud_rate"           default="115200"/>
+
+###########################################
+DROP
+###########################################
+roslaunch drop_recovery start_wp.launch
+
+roslaunch dynamixel_workbench_controllers dynamixel_controllers.launch
+
+rosrun drop_recovery drop_mode_node_v1.py
+
+###########################################
+RECOVERY
+###########################################
+roslaunch drop_recovery start_wp.launch
+
+rosrun drop_recovery recovery_mode_node_v1.py
+
+###########################################
+MAV TRAJECTORY PLANNER EXAMPLE
+###########################################
+
+roslaunch mav_drop_recovery trajectory.launch
+
+rosservice call /firefly/takeoff
+
+rosservice call /firefly/traverse
+
+rosservice call /firefly/release
+
+rosservice call /firefly/execute
