@@ -3,6 +3,7 @@
 TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_private) :
     nh_(nh),
     nh_private_(nh_private),
+    dynamixel_connection_(false),
     safety_altitude_(2.5),
     approach_distance_(1.0),
     tolerance_distance_(0.05),
@@ -14,7 +15,6 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
     height_box_hook_(0.18),
     shift_uavantenna_box_x_(0.1),
     shift_uavantenna_box_y_(0.2),
-
     current_position_(Eigen::Affine3d::Identity()) {
 
   // create publisher for RVIZ markers
@@ -26,6 +26,10 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
   
   // trajectory server
   trajectory_service_ = nh.advertiseService("trajectory", &TrajectoryPlanner::trajectoryCallback, this);
+
+  // dynamixel client
+  dynamixel_client_ = nh.serviceClient<dynamixel_workbench_msgs::DynamixelCommand>("/dynamixel_workbench/dynamixel_command");
+
 }
 
 void TrajectoryPlanner::loadParameters() {
@@ -197,6 +201,22 @@ bool TrajectoryPlanner::trajectoryCallback(mav_drop_recovery::SetTargetPosition:
   return true;
 }
 
+bool TrajectoryPlanner::dynamixelClient(int steps) {
+  dynamixel_workbench_msgs::DynamixelCommand srv;
+  srv.request.command = "";
+  srv.request.id = 1;
+  srv.request.addr_name = "Goal_Position";
+  srv.request.value = steps;
+  if (dynamixel_client_.call(srv)) {
+    ROS_WARN("DYNAMIXEL CALL SUCCESSFULL.");
+    return true;
+  }
+  else {
+    ROS_WARN("DYNAMIXEL CALL UNSUCCESSFULL.");
+    return false;
+  }
+}
+
 bool TrajectoryPlanner::takeoff() {
   Eigen::Affine3d waypoint_takeoff = current_position_;
 
@@ -260,16 +280,25 @@ bool TrajectoryPlanner::release(bool execute) {
     checkPosition(waypoint_descend);
   }
 
-  // Ascend
-  Eigen::Affine3d waypoint_ascend = waypoint_descend;
+  if(dynamixel_connection_) {
+    // Engage Dynamixel
+    dynamixelClient(24570);
+    ros::Duration(5.0).sleep(); 
 
-  waypoint_ascend.translation().z() = waypoint_3_z_ + 1.5;
-  trajectoryPlannerTwoVertices(waypoint_ascend, v_max_*0.3, a_max_);
-  if (execute) {
-    executeTrajectory();
-    ROS_WARN("Ascending");
-    checkPosition(waypoint_ascend);
+    // Ascend
+    Eigen::Affine3d waypoint_ascend = waypoint_descend;
+    waypoint_ascend.translation().z() = waypoint_3_z_ + 1.5;
+    trajectoryPlannerTwoVertices(waypoint_ascend, v_max_*0.3, a_max_);
+    if (execute) {
+      executeTrajectory();
+      ROS_WARN("Ascending.");
+      checkPosition(waypoint_ascend);
+    }
+
+    // Reposition Dynamixel
+    dynamixelClient(0); 
   }
+  
   return true;
 }
 

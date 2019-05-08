@@ -7,7 +7,7 @@
 #include <mav_trajectory_generation/polynomial_optimization_linear.h>
 #include <mav_trajectory_generation_ros/ros_visualization.h>
 #include <mav_trajectory_generation_ros/ros_conversions.h>
-
+#include <dynamixel_workbench_msgs/DynamixelCommand.h>
 #include "mav_drop_recovery/SetTargetPosition.h"
 
 class TrajectoryPlanner {
@@ -30,6 +30,9 @@ class TrajectoryPlanner {
   bool trajectoryCallback(mav_drop_recovery::SetTargetPosition::Request& request, 
                           mav_drop_recovery::SetTargetPosition::Response& response);
 
+  // Service client for dynamixel
+  bool dynamixelClient(int steps);
+  
   // Different trajectories
   bool takeoff();
 
@@ -60,12 +63,16 @@ class TrajectoryPlanner {
   // Services
   ros::ServiceServer trajectory_service_;
 
+  // Clients
+  ros::ServiceClient dynamixel_client_;
+
   ros::NodeHandle& nh_;
   ros::NodeHandle& nh_private_;
   Eigen::Affine3d current_position_;
   mav_trajectory_generation::Trajectory trajectory_;
 
   // Parameters
+  bool dynamixel_connection_; // If dynamixel connected, then true, otherwise false. 
   Eigen::Affine3d startpoint_; // Startpoint of takeoff
   Eigen::Affine3d checkpoint_; // gives the point in checkPosition() to which the UAV has to be approached
   double safety_altitude_; // meters above take-off height.

@@ -14,7 +14,6 @@
  * 
  */
 
-#include  "ros/ros.h"
 #include <mav_drop_recovery/planner.h>
 
 int main(int argc, char** argv) {
