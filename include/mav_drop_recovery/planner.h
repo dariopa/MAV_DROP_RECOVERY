@@ -79,6 +79,8 @@ class TrajectoryPlanner {
   double height_uav_magnet_; // Height from uav-antenna to magnet
   double height_box_antennaplate_; // Height of the antenna plate on the GPS box, in meters
   double height_box_hook_; // Height of a hook on the GPS box, in meters
+  double shift_uavantenna_box_x_; // Shift in X-direction from antenna to centroid of gps box
+  double shift_uavantenna_box_y_; // Shift in Y-direction from antenna to the centroid of gps box.
 
   // Parameters from Yaml
   double waypoint_1_z_; // takeoff height

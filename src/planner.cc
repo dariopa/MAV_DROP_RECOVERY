@@ -12,6 +12,8 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
     height_uav_magnet_(0.6),
     height_box_antennaplate_(0.08),
     height_box_hook_(0.18),
+    shift_uavantenna_box_x_(0.1),
+    shift_uavantenna_box_y_(0.2),
 
     current_position_(Eigen::Affine3d::Identity()) {
 
@@ -37,6 +39,10 @@ void TrajectoryPlanner::loadParameters() {
         nh_private_.getParam("height_overlapping_net", height_overlapping_net_) &&
         nh_private_.getParam("height_overlapping_magnet", height_overlapping_magnet_))
         << "Error loading parameters!";
+  
+  // Configure end position to antenna of uav. 
+  waypoint_2_x -= shift_uavantenna_box_x_;
+  waypoint_2_y -= shift_uavantenna_box_y_;
 }
 
 void TrajectoryPlanner::uavPoseCallback(const geometry_msgs::Pose::ConstPtr& pose) {
