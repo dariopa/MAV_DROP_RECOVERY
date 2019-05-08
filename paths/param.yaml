@@ -1,14 +1,8 @@
 # Waypoints
-wp1_z: 5 # Flight Altitude
+wp1_z: 4.0 # Flight Altitude
 wp2_x: 5.0 # Longitude of GPS Box
-wp2_y: 0.0 # Latitude of GPS Box
-wp3_z: 0.2 # Altitude of GPS Box
+wp2_y: 2.0 # Latitude of GPS Box
+wp3_z: 0.0 # Altitude of ground where GPS box is located
 # Parameters for drone
-v_max: 1.0
-a_max: 1.0
-# Parameters for safety flight
-safety_altitude: 2.5
-# For recovery, define approaching distance from gps rover
-approach_distance: 1.0
-# For checking position
-tolerance_distance: 0.05
+v_max: 1.0 # Maximum Speed
+a_max: 1.0 # Maximum Acceleration

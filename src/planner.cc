@@ -3,9 +3,13 @@
 TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_private) :
     nh_(nh),
     nh_private_(nh_private),
+    safety_altitude_(2.5),
+    approach_distance_(1.0),
+    tolerance_distance_(0.05),
     net_recovery_shift_(0.3),
     height_box_antennaplate_(0.07),
     height_box_hook_(0.12),
+
     current_position_(Eigen::Affine3d::Identity()) {
 
   // create publisher for RVIZ markers
@@ -25,10 +29,7 @@ void TrajectoryPlanner::loadParameters() {
         nh_private_.getParam("wp2_y", waypoint_2_y_) && 
         nh_private_.getParam("wp3_z", waypoint_3_z_) &&
         nh_private_.getParam("v_max", v_max_) &&
-        nh_private_.getParam("a_max", a_max_) &&
-        nh_private_.getParam("safety_altitude", safety_altitude_) &&
-        nh_private_.getParam("approach_distance", approach_distance_) &&
-        nh_private_.getParam("tolerance_distance", tolerance_distance_))
+        nh_private_.getParam("a_max", a_max_))
         << "Error loading parameters!";
 }
 
@@ -41,13 +42,14 @@ void TrajectoryPlanner::getFirstPose() {
 }
 
 bool TrajectoryPlanner::checkPosition(Eigen::Affine3d end_position) {
+  double distance_to_goal; // distance between acutal position and goal-position of drone in checkPosition()
   while(true) {
     ros::spinOnce();
     ros::Duration(0.1).sleep();
-    distance_to_goal_ = sqrt(pow(current_position_.translation().x() - end_position.translation().x(), 2) + 
+    distance_to_goal = sqrt(pow(current_position_.translation().x() - end_position.translation().x(), 2) + 
                              pow(current_position_.translation().y() - end_position.translation().y(), 2) + 
                              pow(current_position_.translation().z() - end_position.translation().z(), 2));
-    if (distance_to_goal_ <= tolerance_distance_) {
+    if (distance_to_goal <= tolerance_distance_) {
       break;
     }
   }
@@ -324,7 +326,7 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   // if checks are all good, then release
   // Pickup with magnet: first descend
   Eigen::Affine3d waypoint_one = current_position_;
-  waypoint_one.translation().z() = waypoint_3_z_ + 0.3;
+  waypoint_one.translation().z() = waypoint_3_z_ + height_box_antennaplate_;
   trajectoryPlannerTwoVertices(waypoint_one, v_max_* 0.3, a_max_);
   if (execute) {
     executeTrajectory();
@@ -332,9 +334,9 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
     checkPosition(waypoint_one);
   }
 
-  // Pickup with magnet: first descend
+  // Pickup with magnet: second ascend (if weight has increased)
   Eigen::Affine3d waypoint_two = current_position_;
-  waypoint_two.translation().z() = waypoint_1_z_/2;
+  waypoint_two.translation().z() = waypoint_3_z_ + 1.5;
   trajectoryPlannerTwoVertices(waypoint_two, v_max_* 0.3, a_max_);
   if (execute) {
     executeTrajectory();

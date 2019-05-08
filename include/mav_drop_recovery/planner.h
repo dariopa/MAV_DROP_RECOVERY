@@ -68,7 +68,9 @@ class TrajectoryPlanner {
   // Parameters
   Eigen::Affine3d startpoint_; // Startpoint of takeoff
   Eigen::Affine3d checkpoint_; // gives the point in checkPosition() to which the UAV has to be approached
-  double distance_to_goal_; // distance between acutal position and goal-position of drone in checkPosition()
+  double safety_altitude_; // m above take-off height.
+  double approach_distance_; // distance from which gps will be approached
+  double tolerance_distance_; // used in checkPosition();
   double net_recovery_shift_; // width of recovery net, required for recovery mode
   double height_box_antennaplate_; // Height of the antenna plate on the GPS box, in meters
   double height_box_hook_; // Height of a hook on the GPS box, in meters
@@ -77,10 +79,7 @@ class TrajectoryPlanner {
   double waypoint_1_z_; // takeoff height
   double waypoint_2_x_; // x coord. for traverse
   double waypoint_2_y_; // y coord. for traverse
-  double waypoint_3_z_; // release height
+  double waypoint_3_z_; // release /recovery height
   double v_max_; // m/s
   double a_max_; // m/s^2
-  double safety_altitude_; // m above take-off height.
-  double approach_distance_; // distance from which gps will be approached
-  double tolerance_distance_; // used in checkPosition();
 };
