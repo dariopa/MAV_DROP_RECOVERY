@@ -41,8 +41,8 @@ void TrajectoryPlanner::loadParameters() {
         << "Error loading parameters!";
   
   // Configure end position to antenna of uav. 
-  waypoint_2_x -= shift_uavantenna_box_x_;
-  waypoint_2_y -= shift_uavantenna_box_y_;
+  waypoint_2_x_ -= shift_uavantenna_box_x_;
+  waypoint_2_y_ -= shift_uavantenna_box_y_;
 }
 
 void TrajectoryPlanner::uavPoseCallback(const geometry_msgs::Pose::ConstPtr& pose) {
@@ -167,7 +167,7 @@ bool TrajectoryPlanner::trajectoryCallback(mav_drop_recovery::SetTargetPosition:
   }
   // RELEASE
   else if (request.command == "release") {
-    function_execute = release();
+    release(request.execute);
   }
   // RECOVERY WITH NET
   else if (request.command == "recovery_net") {
@@ -241,19 +241,35 @@ bool TrajectoryPlanner::traverse() {
   return true;
 }
 
-bool TrajectoryPlanner::release() {
-  Eigen::Affine3d waypoint_release = current_position_;
+bool TrajectoryPlanner::release(bool execute) {
+  Eigen::Affine3d waypoint_descend = current_position_;
 
   // only conduce release when really in release area, which is somewhere around 1 meters distant from the release point
-  if (abs(waypoint_release.translation().x() - waypoint_2_x_) > 1.0 ||
-      abs(waypoint_release.translation().y() - waypoint_2_y_) > 1.0 ) { 
+  if (abs(waypoint_descend.translation().x() - waypoint_2_x_) > 1.0 ||
+      abs(waypoint_descend.translation().y() - waypoint_2_y_) > 1.0 ) { 
     ROS_WARN("You're not in the release region. Release can't be executed - not executing!");
     return false;
   }
   // if checks are all good, then release
-  waypoint_release.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_uav_gripper_ + height_drop_;
-  checkpoint_ = waypoint_release;
-  trajectoryPlannerTwoVertices(waypoint_release, v_max_*0.2, a_max_);
+  // Descend
+  waypoint_descend.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_uav_gripper_ + height_drop_;
+  trajectoryPlannerTwoVertices(waypoint_descend, v_max_*0.2, a_max_);
+  if (execute) {
+    executeTrajectory();
+    ROS_WARN("Descending.");
+    checkPosition(waypoint_descend);
+  }
+
+  // Ascend
+  Eigen::Affine3d waypoint_ascend = waypoint_descend;
+
+  waypoint_ascend.translation().z() = waypoint_3_z_ + 1.5;
+  trajectoryPlannerTwoVertices(waypoint_ascend, v_max_*0.3, a_max_);
+  if (execute) {
+    executeTrajectory();
+    ROS_WARN("Ascending");
+    checkPosition(waypoint_ascend);
+  }
   return true;
 }
 

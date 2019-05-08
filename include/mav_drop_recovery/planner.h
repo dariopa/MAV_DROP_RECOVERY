@@ -35,7 +35,7 @@ class TrajectoryPlanner {
 
   bool traverse();
 
-  bool release();
+  bool release(bool execute);
 
   bool recoveryNet(bool execute);
   
