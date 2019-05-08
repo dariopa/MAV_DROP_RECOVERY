@@ -68,10 +68,15 @@ class TrajectoryPlanner {
   // Parameters
   Eigen::Affine3d startpoint_; // Startpoint of takeoff
   Eigen::Affine3d checkpoint_; // gives the point in checkPosition() to which the UAV has to be approached
-  double safety_altitude_; // m above take-off height.
+  double safety_altitude_; // meters above take-off height.
   double approach_distance_; // distance from which gps will be approached
   double tolerance_distance_; // used in checkPosition();
   double net_recovery_shift_; // width of recovery net, required for recovery mode
+  
+  // Configuration Parameters
+  double height_uav_gripper_; // Height from uav-antenna to end-effector/ Gripper
+  double height_uav_net_; // Height from uav-antenna to lower part of net
+  double height_uav_magnet_; // Height from uav-antenna to magnet
   double height_box_antennaplate_; // Height of the antenna plate on the GPS box, in meters
   double height_box_hook_; // Height of a hook on the GPS box, in meters
 
@@ -82,4 +87,7 @@ class TrajectoryPlanner {
   double waypoint_3_z_; // release /recovery height
   double v_max_; // m/s
   double a_max_; // m/s^2
+  double height_drop_; // variable drop height for release
+  double height_overlapping_net_; // [POSITIVE SIGN!] define how much of the net has to overlap with the hook during the recovery
+  double height_overlapping_magnet_; // [POSITIVE SIGN!] define how much of the magnet has to overlap with the antennaplate on the box
 };

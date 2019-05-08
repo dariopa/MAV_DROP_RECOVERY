@@ -6,3 +6,8 @@ wp3_z: 0.0 # Altitude of ground where GPS box is located
 # Parameters for drone
 v_max: 1.0 # Maximum Speed
 a_max: 1.0 # Maximum Acceleration
+# Release mechanism
+height_drop: 0.1 # drop height
+# Recovery mechanism
+height_overlapping_net: 0.08 # for net [POSITIVE SIGN] 
+height_overlapping_magnet: 0.05 # for magnet [POSITIVE SIGN]
