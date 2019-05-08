@@ -7,8 +7,11 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
     approach_distance_(1.0),
     tolerance_distance_(0.05),
     net_recovery_shift_(0.3),
-    height_box_antennaplate_(0.07),
-    height_box_hook_(0.12),
+    height_uav_gripper_(0.2),
+    height_uav_net_(0.4),
+    height_uav_magnet_(0.6),
+    height_box_antennaplate_(0.08),
+    height_box_hook_(0.18),
 
     current_position_(Eigen::Affine3d::Identity()) {
 
@@ -29,7 +32,10 @@ void TrajectoryPlanner::loadParameters() {
         nh_private_.getParam("wp2_y", waypoint_2_y_) && 
         nh_private_.getParam("wp3_z", waypoint_3_z_) &&
         nh_private_.getParam("v_max", v_max_) &&
-        nh_private_.getParam("a_max", a_max_))
+        nh_private_.getParam("a_max", a_max_) &&
+        nh_private_.getParam("height_drop", height_drop_) &&
+        nh_private_.getParam("height_overlapping_net", height_overlapping_net_) &&
+        nh_private_.getParam("height_overlapping_magnet", height_overlapping_magnet_))
         << "Error loading parameters!";
 }
 
@@ -239,7 +245,7 @@ bool TrajectoryPlanner::release() {
     return false;
   }
   // if checks are all good, then release
-  waypoint_release.translation().z() = waypoint_3_z_ + height_box_antennaplate_;
+  waypoint_release.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_uav_gripper_ + height_drop_;
   checkpoint_ = waypoint_release;
   trajectoryPlannerTwoVertices(waypoint_release, v_max_*0.2, a_max_);
   return true;
@@ -270,7 +276,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
 
     // Then, go down on pickup height
     Eigen::Affine3d waypoint_two = waypoint_one;
-    waypoint_two.translation().z() = waypoint_3_z_ + height_box_hook_;
+    waypoint_two.translation().z() = waypoint_3_z_ + height_box_hook_ + height_uav_net_ - height_overlapping_net_;
     trajectoryPlannerTwoVertices(waypoint_two, v_max_ * 0.3, a_max_);
     if (execute) {
       executeTrajectory();
@@ -326,7 +332,7 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   // if checks are all good, then release
   // Pickup with magnet: first descend
   Eigen::Affine3d waypoint_one = current_position_;
-  waypoint_one.translation().z() = waypoint_3_z_ + height_box_antennaplate_;
+  waypoint_one.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_uav_magnet_ - height_overlapping_magnet_;
   trajectoryPlannerTwoVertices(waypoint_one, v_max_* 0.3, a_max_);
   if (execute) {
     executeTrajectory();
