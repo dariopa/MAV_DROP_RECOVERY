@@ -3,7 +3,7 @@
 TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_private) :
     nh_(nh),
     nh_private_(nh_private),
-    dynamixel_connection_(false),
+    dynamixel_connection_(true),
     safety_altitude_(2.5),
     approach_distance_(1.0),
     tolerance_distance_(0.05),
@@ -40,6 +40,7 @@ void TrajectoryPlanner::loadParameters() {
         nh_private_.getParam("v_max", v_max_) &&
         nh_private_.getParam("a_max", a_max_) &&
         nh_private_.getParam("height_drop", height_drop_) &&
+        nh_private_.getParam("steps_dynamixel", steps_dynamixel_) &&
         nh_private_.getParam("height_overlapping_net", height_overlapping_net_) &&
         nh_private_.getParam("height_overlapping_magnet", height_overlapping_magnet_))
         << "Error loading parameters!";
@@ -282,7 +283,7 @@ bool TrajectoryPlanner::release(bool execute) {
 
   if(dynamixel_connection_) {
     // Engage Dynamixel
-    dynamixelClient(24570);
+    dynamixelClient(steps_dynamixel_);
     ros::Duration(5.0).sleep(); 
 
     // Ascend
@@ -297,6 +298,7 @@ bool TrajectoryPlanner::release(bool execute) {
 
     // Reposition Dynamixel
     dynamixelClient(0); 
+    ros::Duration(5.0).sleep();
   }
   
   return true;

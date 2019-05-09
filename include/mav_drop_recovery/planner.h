@@ -97,6 +97,7 @@ class TrajectoryPlanner {
   double v_max_; // m/s
   double a_max_; // m/s^2
   double height_drop_; // variable drop height for release
+  int steps_dynamixel_; // incremental steps of dynamixel to release GPS box
   double height_overlapping_net_; // [POSITIVE SIGN!] define how much of the net has to overlap with the hook during the recovery
   double height_overlapping_magnet_; // [POSITIVE SIGN!] define how much of the magnet has to overlap with the antennaplate on the box
 };
