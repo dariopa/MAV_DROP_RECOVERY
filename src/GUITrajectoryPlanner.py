@@ -90,7 +90,7 @@ recovery_magnet_button_execute = Button(window, text="Execute \nRecovery Magnet"
 homecoming_button_execute = Button(window, text="Execute \nHomecoming", command=TrajectoryPlanner(homecoming_command, True).trajectory_service_caller)
 
 dynamixel_drop_button = Button(window, text="Drop GPS Box", command=DynamixelController(dynamixel_command, 24570).dynamixel_service_caller)
-dynamixel_reposition_button = Button(window, text="Reposition \nDynamixel", command=DynamixelController(dynamixel_command, 0).dynamixel_service_caller)
+dynamixel_reposition_button = Button(window, text="Reposition \nDynamixel", command=DynamixelController(dynamixel_command, 10).dynamixel_service_caller)
 
 exit_button = Button(window, text="Close", command=window.quit)
 

@@ -304,7 +304,7 @@ bool TrajectoryPlanner::release(bool execute) {
     }
 
     // Reposition Dynamixel
-    dynamixelClient(0); 
+    dynamixelClient(10); 
     ros::Duration(5.0).sleep();
   }
   
