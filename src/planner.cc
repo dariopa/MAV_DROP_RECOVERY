@@ -15,6 +15,7 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
     height_box_hook_(0.18),
     shift_uavantenna_box_x_(0.1),
     shift_uavantenna_box_y_(0.2),
+    payload_threshold_(50),
     current_position_(Eigen::Affine3d::Identity()) {
 
   // create publisher for RVIZ markers
@@ -23,13 +24,15 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
 
   // subscriber for pose
   sub_pose_ = nh.subscribe("uav_pose", 1, &TrajectoryPlanner::uavPoseCallback, this);
-  
+
+  // subscriber for rokubi force
+  sub_force_ = nh.subscribe("rokubi_force", 1, &TrajectoryPlanner::rokubiForceCallback, this);
+
   // trajectory server
   trajectory_service_ = nh.advertiseService("trajectory", &TrajectoryPlanner::trajectoryCallback, this);
 
   // dynamixel client
   dynamixel_client_ = nh.serviceClient<dynamixel_workbench_msgs::DynamixelCommand>("/dynamixel_workbench/dynamixel_command");
-
 }
 
 void TrajectoryPlanner::loadParameters() {
@@ -50,6 +53,10 @@ void TrajectoryPlanner::loadParameters() {
   waypoint_2_y_ -= shift_uavantenna_box_y_;
 }
 
+void TrajectoryPlanner::rokubiForceCallback(const geometry_msgs::Wrench& msg) {
+  payload_ = msg.force.z;
+}
+
 void TrajectoryPlanner::uavPoseCallback(const geometry_msgs::Pose::ConstPtr& pose) {
   tf::poseMsgToEigen(*pose, current_position_);
 }
@@ -62,7 +69,7 @@ bool TrajectoryPlanner::checkPosition(Eigen::Affine3d end_position) {
   double distance_to_goal; // distance between acutal position and goal-position of drone in checkPosition()
   while(true) {
     ros::spinOnce();
-    ros::Duration(0.1).sleep();
+    ros::Duration(0.05).sleep();
     distance_to_goal = sqrt(pow(current_position_.translation().x() - end_position.translation().x(), 2) + 
                              pow(current_position_.translation().y() - end_position.translation().y(), 2) + 
                              pow(current_position_.translation().z() - end_position.translation().z(), 2));
@@ -357,10 +364,20 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
       checkPosition(waypoint_four);
     }
 
-    direction_change *= -1;
+    // Check if you loaded the GPS Box
+    ros::Duration(1.0).sleep();
+    ros::spinOnce();
+    if (payload_ > payload_threshold_) {
+      ROS_WARN("GPS Box has been picked up!");
+      break;
+    }
+    else {
+      ROS_WARN("GPS Box picking up was unsuccsessful - retry.");
+      direction_change *= -1;
+    }
   }
 
-  // Fly above expected GPS box
+  // Getting ready for homecoming
   Eigen::Affine3d waypoint_five;
   waypoint_five.translation().x() = waypoint_2_x_;
   waypoint_five.translation().y() = waypoint_2_y_;
