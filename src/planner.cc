@@ -17,7 +17,7 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
     shift_uavantenna_box_y_(0.2),
     payload_threshold_(50),
     current_position_(Eigen::Affine3d::Identity()) {
-
+catki
   // create publisher for RVIZ markers
   pub_markers_ = nh.advertise<visualization_msgs::MarkerArray>("trajectory_markers", 0);
   pub_trajectory_ = nh.advertise<mav_planning_msgs::PolynomialTrajectory4D>("trajectory", 0);
