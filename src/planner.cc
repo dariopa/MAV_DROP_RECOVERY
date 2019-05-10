@@ -3,11 +3,11 @@
 TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_private) :
     nh_(nh),
     nh_private_(nh_private),
-    dynamixel_connection_(true),
     safety_altitude_(2.5),
     approach_distance_(1.0),
     tolerance_distance_(0.05),
     net_recovery_shift_(0.3),
+    height_hovering_(1.5),
     height_uav_gripper_(0.2),
     height_uav_net_(0.4),
     height_uav_magnet_(0.6),
@@ -17,7 +17,7 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
     shift_uavantenna_box_y_(0.2),
     payload_threshold_(50),
     current_position_(Eigen::Affine3d::Identity()) {
-catki
+
   // create publisher for RVIZ markers
   pub_markers_ = nh.advertise<visualization_msgs::MarkerArray>("trajectory_markers", 0);
   pub_trajectory_ = nh.advertise<mav_planning_msgs::PolynomialTrajectory4D>("trajectory", 0);
@@ -288,25 +288,24 @@ bool TrajectoryPlanner::release(bool execute) {
     checkPosition(waypoint_descend);
   }
 
-  if(dynamixel_connection_) {
-    // Engage Dynamixel
-    dynamixelClient(steps_dynamixel_);
-    ros::Duration(5.0).sleep(); 
+  // Engage Dynamixel
+  dynamixelClient(steps_dynamixel_);
+  ros::Duration(5.0).sleep(); 
 
-    // Ascend
-    Eigen::Affine3d waypoint_ascend = waypoint_descend;
-    waypoint_ascend.translation().z() = waypoint_3_z_ + 1.5;
-    trajectoryPlannerTwoVertices(waypoint_ascend, v_max_*0.3, a_max_);
-    if (execute) {
-      executeTrajectory();
-      ROS_WARN("Ascending.");
-      checkPosition(waypoint_ascend);
-    }
-
-    // Reposition Dynamixel
-    dynamixelClient(10); 
-    ros::Duration(5.0).sleep();
+  // Ascend
+  Eigen::Affine3d waypoint_ascend = waypoint_descend;
+  waypoint_ascend.translation().z() = waypoint_3_z_ + height_hovering_;
+  trajectoryPlannerTwoVertices(waypoint_ascend, v_max_*0.3, a_max_);
+  if (execute) {
+    executeTrajectory();
+    ROS_WARN("Ascending.");
+    checkPosition(waypoint_ascend);
   }
+
+  // Reposition Dynamixel
+  dynamixelClient(10); 
+  ros::Duration(5.0).sleep();
+
   
   return true;
 }
@@ -356,7 +355,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
 
     // Elevate with GPS box
     Eigen::Affine3d waypoint_four = waypoint_three;
-    waypoint_four.translation().z() = waypoint_3_z_ + 1.5;
+    waypoint_four.translation().z() = waypoint_3_z_ + height_hovering_;
     trajectoryPlannerTwoVertices(waypoint_four, v_max_ * 0.3, a_max_);
     if (execute) {
       executeTrajectory();
@@ -412,7 +411,7 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
 
   // Pickup with magnet: second ascend (if weight has increased)
   Eigen::Affine3d waypoint_two = current_position_;
-  waypoint_two.translation().z() = waypoint_3_z_ + 1.5;
+  waypoint_two.translation().z() = waypoint_3_z_ + height_hovering_;
   trajectoryPlannerTwoVertices(waypoint_two, v_max_* 0.3, a_max_);
   if (execute) {
     executeTrajectory();

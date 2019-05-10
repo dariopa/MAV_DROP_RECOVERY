@@ -78,13 +78,13 @@ class TrajectoryPlanner {
   mav_trajectory_generation::Trajectory trajectory_;
 
   // Parameters
-  bool dynamixel_connection_; // If dynamixel connected, then true, otherwise false. 
   Eigen::Affine3d startpoint_; // Startpoint of takeoff
   Eigen::Affine3d checkpoint_; // gives the point in checkPosition() to which the UAV has to be approached
   double safety_altitude_; // [Meter] meters above take-off height.
   double approach_distance_; // [Meter] distance from which gps will be approached
   double tolerance_distance_; // [Meter] used in checkPosition();
   double net_recovery_shift_; // [Meter] width of recovery net, required for recovery mode
+  double height_hovering_; // [Meter] Hovering height above ground after release or recovery
   
   // Coordinate Configuration Parameters
   double height_uav_gripper_; // [Meter] Height from uav-antenna to end-effector/ Gripper
