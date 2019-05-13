@@ -2,7 +2,7 @@
 #include <cmath>
 #include <ros/ros.h>
 #include <std_srvs/Empty.h>
-#include <geometry_msgs/Wrench.h>
+#include <geometry_msgs/WrenchStamped.h>
 #include <Eigen/Dense>
 #include <eigen_conversions/eigen_msg.h>
 #include <mav_trajectory_generation/polynomial_optimization_linear.h>
@@ -18,7 +18,7 @@ class TrajectoryPlanner {
 
   void loadParameters();
 
-  void rokubiForceCallback(const geometry_msgs::Wrench& force);
+  void rokubiForceCallback(const geometry_msgs::WrenchStamped& msg);
 
   void uavPoseCallback(const geometry_msgs::Pose::ConstPtr& pose);
 
@@ -95,6 +95,7 @@ class TrajectoryPlanner {
   double shift_uavantenna_box_x_; // [Meter] Shift in X-direction from antenna to centroid of gps box
   double shift_uavantenna_box_y_; // [Meter] Shift in Y-direction from antenna to the centroid of gps box.
   double payload_threshold_; // [Newton] Threshold which defines if gps box has been released / recovered. 
+  double payload_offset_; // [Newton] Offset which is given by the Rokubi sensor. 
 
   // Parameters from Yaml
   double waypoint_1_z_; // [Meter] takeoff height

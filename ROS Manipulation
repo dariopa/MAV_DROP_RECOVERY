@@ -58,12 +58,8 @@ MAV TRAJECTORY PLANNER EXAMPLE
 
 roslaunch mav_drop_recovery trajectory.launch
 
+roslaunch rokubimini_ros R210-181217-0002_ASL.launch
+
 roslaunch dynamixel_workbench_controllers dynamixel_controllers.launch
 
-rosservice call /firefly/takeoff
-
-rosservice call /firefly/traverse
-
-rosservice call /firefly/release
-
-rosservice call /firefly/execute
+rosservice call /firefly/trajectory

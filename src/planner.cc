@@ -15,7 +15,8 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
     height_box_hook_(0.18),
     shift_uavantenna_box_x_(0.1),
     shift_uavantenna_box_y_(0.2),
-    payload_threshold_(50),
+    payload_threshold_(-5),
+    payload_offset_(26),
     current_position_(Eigen::Affine3d::Identity()) {
 
   // create publisher for RVIZ markers
@@ -26,7 +27,7 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
   sub_pose_ = nh.subscribe("uav_pose", 1, &TrajectoryPlanner::uavPoseCallback, this);
 
   // subscriber for rokubi force
-  sub_force_ = nh.subscribe("rokubi_force", 1, &TrajectoryPlanner::rokubiForceCallback, this);
+  sub_force_ = nh.subscribe("/rokubi_210_node/force_torque_sensor_measurements", 1, &TrajectoryPlanner::rokubiForceCallback, this);
 
   // trajectory server
   trajectory_service_ = nh.advertiseService("trajectory", &TrajectoryPlanner::trajectoryCallback, this);
@@ -53,8 +54,10 @@ void TrajectoryPlanner::loadParameters() {
   waypoint_2_y_ -= shift_uavantenna_box_y_;
 }
 
-void TrajectoryPlanner::rokubiForceCallback(const geometry_msgs::Wrench& msg) {
-  payload_ = msg.force.z;
+void TrajectoryPlanner::rokubiForceCallback(const geometry_msgs::WrenchStamped& msg) {
+  payload_ = msg.wrench.force.z - payload_offset_;
+  // ROS_WARN("%f", payload_);
+  // ros::Duration(1.0).sleep();
 }
 
 void TrajectoryPlanner::uavPoseCallback(const geometry_msgs::Pose::ConstPtr& pose) {
@@ -366,7 +369,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     // Check if you loaded the GPS Box
     ros::Duration(1.0).sleep();
     ros::spinOnce();
-    if (payload_ > payload_threshold_) {
+    if (payload_ < payload_threshold_) {
       ROS_WARN("GPS Box has been picked up!");
       break;
     }
