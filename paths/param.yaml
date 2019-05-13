@@ -1,10 +1,10 @@
 # Waypoints
 wp1_z: 4.0 # Flight Altitude
 wp2_x: 5.0 # Longitude of GPS Box
-wp2_y: 2.0 # Latitude of GPS Box
+wp2_y: 0.0 # Latitude of GPS Box
 wp3_z: 0.0 # Altitude of ground where GPS box is located
 # Parameters for drone
-v_max: 1.0 # Maximum Speed
+v_max: 0.6 # Maximum Speed
 a_max: 1.0 # Maximum Acceleration
 # Release mechanism
 height_drop: 0.1 # drop height for release mechanism

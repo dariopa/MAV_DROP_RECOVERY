@@ -15,7 +15,7 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
     height_box_hook_(0.18),
     shift_uavantenna_box_x_(0.1),
     shift_uavantenna_box_y_(0.2),
-    payload_threshold_(-5),
+    payload_threshold_(8.0),
     payload_offset_(26),
     current_position_(Eigen::Affine3d::Identity()) {
 
@@ -68,16 +68,26 @@ void TrajectoryPlanner::getFirstPose() {
   startpoint_.translation() = current_position_.translation();
 }
 
-bool TrajectoryPlanner::checkPosition(Eigen::Affine3d end_position) {
+bool TrajectoryPlanner::checkPosition(Eigen::Affine3d end_position, bool check_payload) {
   double distance_to_goal; // distance between acutal position and goal-position of drone in checkPosition()
   while(true) {
     ros::spinOnce();
-    ros::Duration(0.05).sleep();
+    ros::Duration(0.02).sleep();
+    // Check distance to desired goal position
     distance_to_goal = sqrt(pow(current_position_.translation().x() - end_position.translation().x(), 2) + 
-                             pow(current_position_.translation().y() - end_position.translation().y(), 2) + 
-                             pow(current_position_.translation().z() - end_position.translation().z(), 2));
+                            pow(current_position_.translation().y() - end_position.translation().y(), 2) + 
+                            pow(current_position_.translation().z() - end_position.translation().z(), 2));
     if (distance_to_goal <= tolerance_distance_) {
       break;
+    }
+    // Check if you picked up something
+    if (check_payload && payload_ > payload_threshold_) {
+      ROS_WARN("YOU GRABBED ONTO SOMETHING - STOPPING TRAJECTORY!");
+      end_position = current_position_;
+      end_position.translation().z() += 0.05; // Arbitrary value to be able to generate a trajectory
+      trajectoryPlannerTwoVertices(end_position, v_max_*0.05, a_max_*0.1);
+      executeTrajectory();
+      return false;
     }
   }
   ROS_WARN("TRAJECTORY TERMINATED.");
@@ -152,7 +162,7 @@ bool TrajectoryPlanner::trajectoryPlannerThreeVertices(Eigen::Affine3d middle_po
 
   // compute segment times
   std::vector<double> segment_times;
-  segment_times = estimateSegmentTimes(vertices, v_max_, a_max_);
+  segment_times = estimateSegmentTimes(vertices, velocity, accel);
 
   // solve trajectory
   const int N = 10;
@@ -233,18 +243,18 @@ bool TrajectoryPlanner::takeoff() {
 
   // check if actually a takeoff, i.e. check if drone wants to collide to ground
   if (waypoint_1_z_ < startpoint_.translation().z()) {
-    ROS_WARN("Not a takeoff, you crash into the ground - not executing!");
+    ROS_WARN("NOT A TAKEOFF, YOU CRASH INTO THE GROUND - NOT EXECUTING!");
     return false;
   }
   // check if takeoff altitude is above safety altitude
   if (waypoint_1_z_ < startpoint_.translation().z() + safety_altitude_) {
-    ROS_WARN("Take off too low. Increase takeoff altitude - not executing!");
+    ROS_WARN("TAKE OFF TOO LOW. INCREASE TAKE OFF ALTITUDE - NOT EXECUTING!");
     return false;
   }
   // only conduce takeoff when really in takeoff area, which is somewhere around 1 meters distant from the startpoint
   if (abs(waypoint_takeoff.translation().x() - startpoint_.translation().x()) > 1.0 ||
       abs(waypoint_takeoff.translation().y() - startpoint_.translation().y()) > 1.0 ) { 
-    ROS_WARN("You're not in the takeoff region. Takeoff can't be executed - not executing!");
+    ROS_WARN("YOU'RE NOT IN THE TAKEOFF REGION - NOT EXECUTING!");
     return false;
   }
 
@@ -260,7 +270,7 @@ bool TrajectoryPlanner::traverse() {
 
   // check if you're high enough for traversation, i.e. if you're above safety altitude
   if (waypoint_traverse.translation().z() < startpoint_.translation().z() + safety_altitude_) {
-    ROS_WARN("You're not on the correct traversation height - not executing!");
+    ROS_WARN("YOU'RE NOT ON THE TRAVERSATION HEIGHT - NOT EXECUTING!");
     return false;
   }
   
@@ -278,7 +288,7 @@ bool TrajectoryPlanner::release(bool execute) {
   // only conduce release when really in release area, which is somewhere around 1 meters distant from the release point
   if (abs(waypoint_descend.translation().x() - waypoint_2_x_) > 1.0 ||
       abs(waypoint_descend.translation().y() - waypoint_2_y_) > 1.0 ) { 
-    ROS_WARN("You're not in the release region. Release can't be executed - not executing!");
+    ROS_WARN("YOU'RE NOT IN THE RELEASE REGION - NOT EXECUTING!");
     return false;
   }
   // if checks are all good, then release
@@ -287,7 +297,7 @@ bool TrajectoryPlanner::release(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_descend, v_max_*0.2, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("Descending.");
+    ROS_WARN("DESCENDING.");
     checkPosition(waypoint_descend);
   }
 
@@ -301,7 +311,7 @@ bool TrajectoryPlanner::release(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_ascend, v_max_*0.3, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("Ascending.");
+    ROS_WARN("ASCENDING.");
     checkPosition(waypoint_ascend);
   }
 
@@ -318,7 +328,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
   // only conduce recovery when really in recovery area, which is somewhere around 1 meters distant from the recovery point
   if (abs(waypoint_recovery.translation().x() - waypoint_2_x_) > 1.0 ||
       abs(waypoint_recovery.translation().y() - waypoint_2_y_) > 1.0 ) { 
-    ROS_WARN("You're not in the recovery region. Recovery can't be executed - not executing!");
+    ROS_WARN("YOU'RE NOT IN THE RECOVERY REGION - NOT EXECUTING!");
     return false;
   }
 
@@ -328,53 +338,56 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     // First slightly return on the x-axis
     Eigen::Affine3d waypoint_one = current_position_;
     waypoint_one.translation().x() -= approach_distance_;
+    if (counter > 0) {
+      waypoint_one.translation().x() -= approach_distance_; // If re-iteration required, then enter this if-condition again
+    }
     waypoint_one.translation().y() += (net_recovery_shift_ * counter * direction_change);
-    trajectoryPlannerTwoVertices(waypoint_one, v_max_ * 0.3, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_one, v_max_*0.5, a_max_);
     if (execute) {
       executeTrajectory();
-      ROS_WARN("Slightly stepping back on traversation path.");
+      ROS_WARN("STEPPING BACK ON TRAVERSATION PATH.");
       checkPosition(waypoint_one);
     }
 
     // Then, go down on pickup height
     Eigen::Affine3d waypoint_two = waypoint_one;
     waypoint_two.translation().z() = waypoint_3_z_ + height_box_hook_ + height_uav_net_ - height_overlapping_net_;
-    trajectoryPlannerTwoVertices(waypoint_two, v_max_ * 0.3, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_two, v_max_ * 0.2, a_max_);
     if (execute) {
       executeTrajectory();
-      ROS_WARN("Descending on approach position.");
+      ROS_WARN("DESCENDING ON APPROACHING POSITION.");
       checkPosition(waypoint_two);
     }
 
     // Pick up GPS box
     Eigen::Affine3d waypoint_three = waypoint_two;
-    waypoint_three.translation().x() = waypoint_2_x_;
-    trajectoryPlannerTwoVertices(waypoint_three, v_max_ * 0.3, a_max_);
+    waypoint_three.translation().x() = waypoint_2_x_ + approach_distance_;
+    trajectoryPlannerTwoVertices(waypoint_three, v_max_ * 0.1, a_max_);
     if (execute) {
       executeTrajectory();
-      ROS_WARN("Picking up gps box.");
-      checkPosition(waypoint_three);
+      ROS_WARN("PICKING UP GPS BOX.");
+      if (!checkPosition(waypoint_three, true)) {
+        break; // Go out of for-loop!
+      }
     }
 
     // Elevate with GPS box
     Eigen::Affine3d waypoint_four = waypoint_three;
     waypoint_four.translation().z() = waypoint_3_z_ + height_hovering_;
-    trajectoryPlannerTwoVertices(waypoint_four, v_max_ * 0.3, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_four, v_max_ * 0.2, a_max_);
     if (execute) {
       executeTrajectory();
-      ROS_WARN("Elevating.");
+      ROS_WARN("ELEVATING.");
       checkPosition(waypoint_four);
     }
 
     // Check if you loaded the GPS Box
-    ros::Duration(1.0).sleep();
-    ros::spinOnce();
-    if (payload_ < payload_threshold_) {
-      ROS_WARN("GPS Box has been picked up!");
+    if (payload_ > payload_threshold_) {
+      ROS_WARN("GPS BOX SUCCESSFULLY PICKED UP!");
       break;
     }
     else {
-      ROS_WARN("GPS Box picking up was unsuccsessful - retry.");
+      ROS_WARN("GPS BOX MISSED -RETRY!");
       direction_change *= -1;
     }
   }
@@ -387,7 +400,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_five, v_max_ * 0.3, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("Getting in position for homecoming.");
+    ROS_WARN("GO TO POSITION FOR HOMECOMING.");
     checkPosition(waypoint_five);
   }
   return true;
@@ -398,7 +411,7 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   // only conduce recovery when really in recovery area, which is somewhere around 1 meters distant from the recovery point
   if (abs(waypoint_recovery.translation().x() - waypoint_2_x_) > 1.0 ||
       abs(waypoint_recovery.translation().y() - waypoint_2_y_) > 1.0 ) { 
-    ROS_WARN("You're not in the recovery region. Recovery can't be executed - not executing!");
+    ROS_WARN("YOU'RE NOT IN THE RECOVERY REGION - NOT EXECUTING!");
     return false;
   }
   // if checks are all good, then release
@@ -408,7 +421,7 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_one, v_max_* 0.3, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("Descending.");
+    ROS_WARN("DESCENDING.");
     checkPosition(waypoint_one);
   }
 
@@ -418,13 +431,20 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_two, v_max_* 0.3, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("Ascending.");
+    ROS_WARN("ASCENDING.");
     checkPosition(waypoint_two);
   }
   return true;
 }
 
 bool TrajectoryPlanner::homecoming() {
+  // check if you're already home or not
+  if (abs(current_position_.translation().x() - startpoint_.translation().x()) < 1.0 &&
+      abs(current_position_.translation().y() - startpoint_.translation().y()) < 1.0 ) { 
+    ROS_WARN("YOU'RE ALREADY HOME - NOT EXECUTING!");
+    return false;
+  }
+
   Eigen::Affine3d waypoint_homecoming_middle; 
   waypoint_homecoming_middle.translation().x() = (current_position_.translation().x() + startpoint_.translation().x()) / 2;
   waypoint_homecoming_middle.translation().y() = (current_position_.translation().y() + startpoint_.translation().y()) / 2;
