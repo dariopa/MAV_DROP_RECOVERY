@@ -24,7 +24,7 @@ class TrajectoryPlanner {
 
   void getFirstPose();
 
-  bool checkPosition(Eigen::Affine3d end_position, bool check_payload=false);
+  bool checkPositionPayload(Eigen::Affine3d end_position, bool check_recovery_payload=false, bool check_release_payload=false);
 
   bool trajectoryPlannerTwoVertices(Eigen::Affine3d end_position, double velocity, double accel);
 

@@ -68,30 +68,41 @@ void TrajectoryPlanner::getFirstPose() {
   startpoint_.translation() = current_position_.translation();
 }
 
-bool TrajectoryPlanner::checkPosition(Eigen::Affine3d end_position, bool check_payload) {
-  double distance_to_goal; // distance between acutal position and goal-position of drone in checkPosition()
+bool TrajectoryPlanner::checkPositionPayload(Eigen::Affine3d end_position, bool check_recovery_payload, bool check_release_payload) {
+  double distance_to_goal; // distance between acutal position and goal-position of drone in checkPositionPayload()
   while(true) {
     ros::spinOnce();
     ros::Duration(0.02).sleep();
+    
     // Check distance to desired goal position
     distance_to_goal = sqrt(pow(current_position_.translation().x() - end_position.translation().x(), 2) + 
                             pow(current_position_.translation().y() - end_position.translation().y(), 2) + 
                             pow(current_position_.translation().z() - end_position.translation().z(), 2));
     if (distance_to_goal <= tolerance_distance_) {
-      break;
+      ROS_WARN("TRAJECTORY TERMINATED.");
+      return true;
     }
-    // Check if you picked up something
-    if (check_payload && payload_ > payload_threshold_) {
-      ROS_WARN("YOU GRABBED ONTO SOMETHING - STOPPING TRAJECTORY!");
+
+    // Check if you picked up something during recovery
+    if (check_recovery_payload && payload_ > payload_threshold_) {
+      ROS_WARN("YOU GRABBED ON GPS BOX - STOPPING TRAJECTORY!");
       end_position = current_position_;
-      end_position.translation().z() += 0.05; // Arbitrary value to be able to generate a trajectory
+      end_position.translation().z() += 0.01; // Arbitrary value > 0, to be able to generate a trajectory
       trajectoryPlannerTwoVertices(end_position, v_max_*0.05, a_max_*0.1);
       executeTrajectory();
-      return false;
+      return true;
+    }
+
+    // Check if you touched the ground during the release
+    if (check_release_payload && payload_ < payload_threshold_) {
+      ROS_WARN("YOU LANDED ON THE GROUND - STOPPING TRAJECTORY!");
+      end_position = current_position_;
+      end_position.translation().z() += 0.01; // Arbitrary value > 0, to be able to generate trajectory
+      trajectoryPlannerTwoVertices(end_position, v_max_*0.05, a_max_*0.1);
+      executeTrajectory();
+      return true;
     }
   }
-  ROS_WARN("TRAJECTORY TERMINATED.");
-  return true;
 }
 
 bool TrajectoryPlanner::trajectoryPlannerTwoVertices(Eigen::Affine3d end_position, double velocity, double accel) {
@@ -215,7 +226,7 @@ bool TrajectoryPlanner::trajectoryCallback(mav_drop_recovery::SetTargetPosition:
   // Check if trajectory execution is demanded.
   if (request.execute == true && function_execute == true) {
     executeTrajectory();
-    checkPosition(checkpoint_);
+    checkPositionPayload(checkpoint_);
   }
 
   response.success == true;
@@ -298,7 +309,7 @@ bool TrajectoryPlanner::release(bool execute) {
   if (execute) {
     executeTrajectory();
     ROS_WARN("DESCENDING.");
-    checkPosition(waypoint_descend);
+    checkPositionPayload(waypoint_descend, false, true);
   }
 
   // Engage Dynamixel
@@ -312,14 +323,20 @@ bool TrajectoryPlanner::release(bool execute) {
   if (execute) {
     executeTrajectory();
     ROS_WARN("ASCENDING.");
-    checkPosition(waypoint_ascend);
+    checkPositionPayload(waypoint_ascend);
+  }
+
+  // Check if gps box has been detached
+  if (payload_ < payload_threshold_) {
+    ROS_WARN("GPS BOX IS DETACHED!");
+  }
+  else {
+    ROS_WARN("PROBLEM WHILE DETACHING GPS BOX - RETRY!");
   }
 
   // Reposition Dynamixel
   dynamixelClient(10); 
-  ros::Duration(5.0).sleep();
 
-  
   return true;
 }
 
@@ -346,7 +363,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     if (execute) {
       executeTrajectory();
       ROS_WARN("STEPPING BACK ON TRAVERSATION PATH.");
-      checkPosition(waypoint_one);
+      checkPositionPayload(waypoint_one);
     }
 
     // Then, go down on pickup height
@@ -356,29 +373,29 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     if (execute) {
       executeTrajectory();
       ROS_WARN("DESCENDING ON APPROACHING POSITION.");
-      checkPosition(waypoint_two);
+      checkPositionPayload(waypoint_two);
     }
 
     // Pick up GPS box
     Eigen::Affine3d waypoint_three = waypoint_two;
     waypoint_three.translation().x() = waypoint_2_x_ + approach_distance_;
-    trajectoryPlannerTwoVertices(waypoint_three, v_max_ * 0.1, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_three, v_max_*0.1, a_max_);
     if (execute) {
       executeTrajectory();
       ROS_WARN("PICKING UP GPS BOX.");
-      if (!checkPosition(waypoint_three, true)) {
-        break; // Go out of for-loop!
+      if (checkPositionPayload(waypoint_three, true, false)) {
+        break; // Go out of for-loop in checkPositionPayload()!
       }
     }
 
     // Elevate with GPS box
     Eigen::Affine3d waypoint_four = waypoint_three;
     waypoint_four.translation().z() = waypoint_3_z_ + height_hovering_;
-    trajectoryPlannerTwoVertices(waypoint_four, v_max_ * 0.2, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_four, v_max_*0.2, a_max_);
     if (execute) {
       executeTrajectory();
       ROS_WARN("ELEVATING.");
-      checkPosition(waypoint_four);
+      checkPositionPayload(waypoint_four);
     }
 
     // Check if you loaded the GPS Box
@@ -397,11 +414,11 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
   waypoint_five.translation().x() = waypoint_2_x_;
   waypoint_five.translation().y() = waypoint_2_y_;
   waypoint_five.translation().z() = waypoint_1_z_;
-  trajectoryPlannerTwoVertices(waypoint_five, v_max_ * 0.3, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_five, v_max_*0.3, a_max_);
   if (execute) {
     executeTrajectory();
     ROS_WARN("GO TO POSITION FOR HOMECOMING.");
-    checkPosition(waypoint_five);
+    checkPositionPayload(waypoint_five);
   }
   return true;
 }
@@ -418,21 +435,21 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   // Pickup with magnet: first descend
   Eigen::Affine3d waypoint_one = current_position_;
   waypoint_one.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_uav_magnet_ - height_overlapping_magnet_;
-  trajectoryPlannerTwoVertices(waypoint_one, v_max_* 0.3, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_one, v_max_*0.3, a_max_);
   if (execute) {
     executeTrajectory();
     ROS_WARN("DESCENDING.");
-    checkPosition(waypoint_one);
+    checkPositionPayload(waypoint_one);
   }
 
   // Pickup with magnet: second ascend (if weight has increased)
   Eigen::Affine3d waypoint_two = current_position_;
   waypoint_two.translation().z() = waypoint_3_z_ + height_hovering_;
-  trajectoryPlannerTwoVertices(waypoint_two, v_max_* 0.3, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_two, v_max_*0.3, a_max_);
   if (execute) {
     executeTrajectory();
     ROS_WARN("ASCENDING.");
-    checkPosition(waypoint_two);
+    checkPositionPayload(waypoint_two);
   }
   return true;
 }
