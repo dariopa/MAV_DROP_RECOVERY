@@ -31,9 +31,89 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
 
   // trajectory server
   trajectory_service_ = nh.advertiseService("trajectory", &TrajectoryPlanner::trajectoryCallback, this);
+  load_parameters_service_ = nh.advertiseService("load_parameters", &TrajectoryPlanner::loadParametersCallback, this);
 
   // dynamixel client
   dynamixel_client_ = nh.serviceClient<dynamixel_workbench_msgs::DynamixelCommand>("/dynamixel_workbench/dynamixel_command");
+}
+
+bool TrajectoryPlanner::loadParametersCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response) {
+  loadParameters();
+  return true;
+}
+
+void TrajectoryPlanner::rokubiForceCallback(const geometry_msgs::WrenchStamped& msg) {
+  payload_ = msg.wrench.force.z - payload_offset_;
+  // ROS_WARN("%f", payload_);
+  // ros::Duration(1.0).sleep();
+}
+
+void TrajectoryPlanner::uavPoseCallback(const geometry_msgs::Pose::ConstPtr& pose) {
+  tf::poseMsgToEigen(*pose, current_position_);
+}
+
+bool TrajectoryPlanner::trajectoryCallback(mav_drop_recovery::SetTargetPosition::Request& request, 
+                                           mav_drop_recovery::SetTargetPosition::Response& response) {
+  
+  bool function_execute = false; // if trajectory-function returns false, then it shall not be executed
+  // TAKEOFF                                          
+  if (request.command == "takeoff") {
+    function_execute = takeoff();
+  }
+  // TRAVERSE
+  else if (request.command == "traverse") {
+    function_execute = traverse();
+  }
+  // RELEASE
+  else if (request.command == "release") {
+    release(request.execute);
+  }
+  // RECOVERY WITH NET
+  else if (request.command == "recovery_net") {
+    recoveryNet(request.execute); // we don't want to send execution, as we will execute in the function itself
+  }
+  // RECOVERY WITH MAGNET
+  else if (request.command == "recovery_magnet") {
+    recoveryMagnet(request.execute);
+  }
+  // HOMECOMING
+  else if (request.command == "homecoming") {
+    function_execute = homecoming();
+  }
+  else {
+    ROS_WARN("INCORRECT_INPUT - CHECK AND RETRY");
+    response.success == false;
+    return false; 
+  }
+
+  // Check if trajectory execution is demanded.
+  if (request.execute == true && function_execute == true) {
+    executeTrajectory();
+    checkPositionPayload(checkpoint_);
+  }
+
+  response.success == true;
+  return true;
+}
+
+bool TrajectoryPlanner::dynamixelClient(int steps) {
+  dynamixel_workbench_msgs::DynamixelCommand srv;
+  srv.request.command = "";
+  srv.request.id = 1;
+  srv.request.addr_name = "Goal_Position";
+  srv.request.value = steps;
+  if (dynamixel_client_.call(srv)) {
+    ROS_WARN("DYNAMIXEL CALL SUCCESSFULL.");
+    return true;
+  }
+  else {
+    ROS_WARN("DYNAMIXEL CALL UNSUCCESSFULL.");
+    return false;
+  }
+}
+
+void TrajectoryPlanner::getFirstPose() {
+  startpoint_.translation() = current_position_.translation();
 }
 
 void TrajectoryPlanner::loadParameters() {
@@ -52,20 +132,7 @@ void TrajectoryPlanner::loadParameters() {
   // Configure end position to antenna of uav. 
   waypoint_2_x_ -= shift_uavantenna_box_x_;
   waypoint_2_y_ -= shift_uavantenna_box_y_;
-}
-
-void TrajectoryPlanner::rokubiForceCallback(const geometry_msgs::WrenchStamped& msg) {
-  payload_ = msg.wrench.force.z - payload_offset_;
-  // ROS_WARN("%f", payload_);
-  // ros::Duration(1.0).sleep();
-}
-
-void TrajectoryPlanner::uavPoseCallback(const geometry_msgs::Pose::ConstPtr& pose) {
-  tf::poseMsgToEigen(*pose, current_position_);
-}
-
-void TrajectoryPlanner::getFirstPose() {
-  startpoint_.translation() = current_position_.translation();
+  ROS_WARN("PARAMETERS LOADED!");
 }
 
 bool TrajectoryPlanner::checkPositionPayload(Eigen::Affine3d end_position, bool check_recovery_payload, bool check_release_payload) {
@@ -187,66 +254,6 @@ bool TrajectoryPlanner::trajectoryPlannerThreeVertices(Eigen::Affine3d middle_po
   
   visualizeTrajectory();
   return true;
-}
-
-bool TrajectoryPlanner::trajectoryCallback(mav_drop_recovery::SetTargetPosition::Request& request, 
-                                           mav_drop_recovery::SetTargetPosition::Response& response) {
-  
-  bool function_execute = false; // if trajectory-function returns false, then it shall not be executed
-  // TAKEOFF                                          
-  if (request.command == "takeoff") {
-    function_execute = takeoff();
-  }
-  // TRAVERSE
-  else if (request.command == "traverse") {
-    function_execute = traverse();
-  }
-  // RELEASE
-  else if (request.command == "release") {
-    release(request.execute);
-  }
-  // RECOVERY WITH NET
-  else if (request.command == "recovery_net") {
-    recoveryNet(request.execute); // we don't want to send execution, as we will execute in the function itself
-  }
-  // RECOVERY WITH MAGNET
-  else if (request.command == "recovery_magnet") {
-    recoveryMagnet(request.execute);
-  }
-  // HOMECOMING
-  else if (request.command == "homecoming") {
-    function_execute = homecoming();
-  }
-  else {
-    ROS_WARN("INCORRECT_INPUT - CHECK AND RETRY");
-    response.success == false;
-    return false; 
-  }
-
-  // Check if trajectory execution is demanded.
-  if (request.execute == true && function_execute == true) {
-    executeTrajectory();
-    checkPositionPayload(checkpoint_);
-  }
-
-  response.success == true;
-  return true;
-}
-
-bool TrajectoryPlanner::dynamixelClient(int steps) {
-  dynamixel_workbench_msgs::DynamixelCommand srv;
-  srv.request.command = "";
-  srv.request.id = 1;
-  srv.request.addr_name = "Goal_Position";
-  srv.request.value = steps;
-  if (dynamixel_client_.call(srv)) {
-    ROS_WARN("DYNAMIXEL CALL SUCCESSFULL.");
-    return true;
-  }
-  else {
-    ROS_WARN("DYNAMIXEL CALL UNSUCCESSFULL.");
-    return false;
-  }
 }
 
 bool TrajectoryPlanner::takeoff() {
@@ -451,7 +458,16 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
     ROS_WARN("ASCENDING.");
     checkPositionPayload(waypoint_two);
   }
-  return true;
+
+  // Check if you loaded the GPS Box
+  if (payload_ > payload_threshold_) {
+    ROS_WARN("GPS BOX SUCCESSFULLY PICKED UP!");
+    return true;
+  }
+  else {
+    ROS_WARN("GPS BOX MISSED -RETRY!");
+    return false;
+  }
 }
 
 bool TrajectoryPlanner::homecoming() {

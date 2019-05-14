@@ -2,6 +2,7 @@ import rospy
 from tkinter import *
 from mav_drop_recovery.srv import SetTargetPosition, SetTargetPositionRequest
 from dynamixel_workbench_msgs.srv import DynamixelCommand, DynamixelCommandRequest
+from std_srvs.srv import Empty, EmptyRequest
 
 # Release command for dynamixel
 dynamixel_command = DynamixelCommandRequest()
@@ -33,6 +34,15 @@ recovery_magnet_command.command = "recovery_magnet"
 homecoming_command = SetTargetPositionRequest()
 homecoming_command.command = "homecoming"
 
+
+class LoadParameters:
+    def loadParameters(self):
+        rospy.wait_for_service('/firefly/load_parameters')
+        try:
+            load_parameters = rospy.ServiceProxy('/firefly/load_parameters', Empty)
+            return load_parameters()
+        except rospy.ServiceException, e:
+            print "Service call failed: %s"%e
 
 class TrajectoryPlanner:
     def __init__(self, command, execute):
@@ -75,6 +85,8 @@ window = Tk()
 window.title("Trajectory Planner")
 
 # Define buttons
+load_parameters_button = Button(window, text="Load New Parameters", command=LoadParameters().loadParameters)
+
 takeoff_button_visualize = Button(window, text="Visualize \nTakeoff", command=TrajectoryPlanner(takeoff_command, False).trajectory_service_caller)
 traverse_button_visualize = Button(window, text="Visualize \nTraverse", command=TrajectoryPlanner(traverse_command, False).trajectory_service_caller)
 release_button_visualize = Button(window, text="Visualize \nRelease", command=TrajectoryPlanner(release_command, False).trajectory_service_caller)
@@ -97,6 +109,7 @@ exit_button = Button(window, text="Close", command=window.quit)
 # Define labels
 choose_trajectory_label = Label(window, text="Choose which trajectory you would like to visualize / execute.")
 dynamixel_label = Label(window, text="Choose what to do with dynamixel.")
+load_parameters_label = Label(window, text="Load new parameters.")
 info_label = Label(window, text="Close the GUI.")
 
 
@@ -120,8 +133,11 @@ dynamixel_label.grid(row=3, column=2, columnspan=4, padx=10, pady=10)
 dynamixel_drop_button.grid(row=4, column=3, padx = 10, pady = 10)
 dynamixel_reposition_button.grid(row=4, column=4, padx = 10, pady = 10)
 
-info_label.grid(row=5, column=2, columnspan=4, padx = 10, pady = 10)
-exit_button.grid(row=6, column=2, columnspan=4, padx = 10, pady = 10)
+load_parameters_label.grid(row=5, column=2, columnspan=4, padx=10, pady=10)
+load_parameters_button.grid(row=6, column=2, columnspan=4, padx=10, pady=10)
+
+info_label.grid(row=7, column=2, columnspan=4, padx = 10, pady = 10)
+exit_button.grid(row=8, column=2, columnspan=4, padx = 10, pady = 10)
 
 
 # Wait in the eventloop until user does something

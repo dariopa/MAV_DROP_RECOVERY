@@ -16,19 +16,11 @@ class TrajectoryPlanner {
  public:
   TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_private);
 
-  void loadParameters();
+  bool loadParametersCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
 
   void rokubiForceCallback(const geometry_msgs::WrenchStamped& msg);
 
   void uavPoseCallback(const geometry_msgs::Pose::ConstPtr& pose);
-
-  void getFirstPose();
-
-  bool checkPositionPayload(Eigen::Affine3d end_position, bool check_recovery_payload=false, bool check_release_payload=false);
-
-  bool trajectoryPlannerTwoVertices(Eigen::Affine3d end_position, double velocity, double accel);
-
-  bool trajectoryPlannerThreeVertices(Eigen::Affine3d middle_position, Eigen::Affine3d end_position, double velocity, double accel);
 
   // Service caller for trajectory
   bool trajectoryCallback(mav_drop_recovery::SetTargetPosition::Request& request, 
@@ -37,6 +29,16 @@ class TrajectoryPlanner {
   // Service client for dynamixel
   bool dynamixelClient(int steps);
   
+  void getFirstPose();
+
+  void loadParameters();
+
+  bool checkPositionPayload(Eigen::Affine3d end_position, bool check_recovery_payload=false, bool check_release_payload=false);
+
+  bool trajectoryPlannerTwoVertices(Eigen::Affine3d end_position, double velocity, double accel);
+
+  bool trajectoryPlannerThreeVertices(Eigen::Affine3d middle_position, Eigen::Affine3d end_position, double velocity, double accel);
+
   // Different trajectories
   bool takeoff();
 
@@ -67,6 +69,7 @@ class TrajectoryPlanner {
 
   // Services
   ros::ServiceServer trajectory_service_;
+  ros::ServiceServer load_parameters_service_;
 
   // Clients
   ros::ServiceClient dynamixel_client_;
