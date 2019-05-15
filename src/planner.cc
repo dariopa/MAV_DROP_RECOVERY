@@ -122,6 +122,9 @@ void TrajectoryPlanner::loadParameters() {
         nh_private_.getParam("wp3_z", waypoint_3_z_) &&
         nh_private_.getParam("v_max", v_max_) &&
         nh_private_.getParam("a_max", a_max_) &&
+        nh_private_.getParam("v_scaling_descending", v_scaling_descending_) &&
+        nh_private_.getParam("v_scaling_ascending", v_scaling_ascending_) &&
+        nh_private_.getParam("v_scaling_recovery_traverse", v_scaling_recovery_traverse_) &&
         nh_private_.getParam("height_drop", height_drop_) &&
         nh_private_.getParam("steps_dynamixel", steps_dynamixel_) &&
         nh_private_.getParam("height_overlapping_net", height_overlapping_net_) &&
@@ -283,7 +286,7 @@ bool TrajectoryPlanner::takeoff() {
   // if checks are done, then takeoff
   waypoint_takeoff.translation().z() = waypoint_1_z_; 
   checkpoint_ = waypoint_takeoff;
-  trajectoryPlannerTwoVertices(waypoint_takeoff, v_max_*0.5, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_takeoff, v_max_*v_scaling_ascending_, a_max_);
   return true;
 }
 
@@ -313,10 +316,17 @@ bool TrajectoryPlanner::release(bool execute) {
     ROS_WARN("YOU'RE NOT IN THE RELEASE REGION - NOT EXECUTING!");
     return false;
   }
+
+  // Check if rokubi sensor is still working, or if gps box is still attached
+  if (payload_ < payload_threshold_) {
+    ROS_WARN("EITHER SOMETHING WRONG WITH ROKUBI OR YOU LOST GPS BOX - NOT EXECUTING!");
+    return false;
+  }
+  
   // if checks are all good, then release
   // Descend
   waypoint_descend.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_rokubi_gripper_ + height_drop_;
-  trajectoryPlannerTwoVertices(waypoint_descend, v_max_*0.2, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_descend, v_max_*v_scaling_descending_, a_max_);
   if (execute) {
     executeTrajectory();
     ROS_WARN("DESCENDING.");
@@ -330,7 +340,7 @@ bool TrajectoryPlanner::release(bool execute) {
   // Ascend
   Eigen::Affine3d waypoint_ascend = waypoint_descend;
   waypoint_ascend.translation().z() = waypoint_3_z_ + height_hovering_;
-  trajectoryPlannerTwoVertices(waypoint_ascend, v_max_*0.3, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_ascend, v_max_*v_scaling_ascending_, a_max_);
   if (execute) {
     executeTrajectory();
     ROS_WARN("ASCENDING.");
@@ -370,7 +380,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
       waypoint_one.translation().x() -= approach_distance_; // If re-iteration required, then enter this if-condition again
     }
     waypoint_one.translation().y() += (net_recovery_shift_ * counter * direction_change);
-    trajectoryPlannerTwoVertices(waypoint_one, v_max_*0.5, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_one, v_max_, a_max_);
     if (execute) {
       executeTrajectory();
       ROS_WARN("STEPPING BACK ON TRAVERSATION PATH.");
@@ -380,7 +390,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     // Then, go down on pickup height
     Eigen::Affine3d waypoint_two = waypoint_one;
     waypoint_two.translation().z() = waypoint_3_z_ + height_box_hook_ + height_rokubi_net_ - height_overlapping_net_;
-    trajectoryPlannerTwoVertices(waypoint_two, v_max_*0.2, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_two, v_max_*v_scaling_descending_, a_max_);
     if (execute) {
       executeTrajectory();
       ROS_WARN("DESCENDING ON APPROACHING POSITION.");
@@ -390,7 +400,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     // Pick up GPS box
     Eigen::Affine3d waypoint_three = waypoint_two;
     waypoint_three.translation().x() = waypoint_2_x_ + approach_distance_;
-    trajectoryPlannerTwoVertices(waypoint_three, v_max_*0.1, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_three, v_max_*v_scaling_recovery_traverse_, a_max_);
     if (execute) {
       executeTrajectory();
       ROS_WARN("PICKING UP GPS BOX.");
@@ -402,7 +412,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     // Elevate with GPS box
     Eigen::Affine3d waypoint_four = waypoint_three;
     waypoint_four.translation().z() = waypoint_3_z_ + height_hovering_;
-    trajectoryPlannerTwoVertices(waypoint_four, v_max_*0.2, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_four, v_max_*v_scaling_ascending_, a_max_);
     if (execute) {
       executeTrajectory();
       ROS_WARN("ELEVATING.");
@@ -425,7 +435,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
   waypoint_five.translation().x() = waypoint_2_x_;
   waypoint_five.translation().y() = waypoint_2_y_;
   waypoint_five.translation().z() = waypoint_1_z_;
-  trajectoryPlannerTwoVertices(waypoint_five, v_max_*0.3, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_five, v_max_*v_scaling_ascending_, a_max_);
   if (execute) {
     executeTrajectory();
     ROS_WARN("GO TO POSITION FOR HOMECOMING.");
@@ -446,7 +456,7 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   // Pickup with magnet: first descend
   Eigen::Affine3d waypoint_one = current_position_;
   waypoint_one.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_rokubi_magnet_ - height_overlapping_magnet_;
-  trajectoryPlannerTwoVertices(waypoint_one, v_max_*0.3, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_one, v_max_*v_scaling_descending_, a_max_);
   if (execute) {
     executeTrajectory();
     ROS_WARN("DESCENDING.");
@@ -456,7 +466,7 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   // Pickup with magnet: second ascend (if weight has increased)
   Eigen::Affine3d waypoint_two = current_position_;
   waypoint_two.translation().z() = waypoint_3_z_ + height_hovering_;
-  trajectoryPlannerTwoVertices(waypoint_two, v_max_*0.3, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_two, v_max_*v_scaling_ascending_, a_max_);
   if (execute) {
     executeTrajectory();
     ROS_WARN("ASCENDING.");
@@ -485,15 +495,15 @@ bool TrajectoryPlanner::homeComing() {
   Eigen::Affine3d waypoint_homecoming_middle; 
   waypoint_homecoming_middle.translation().x() = (current_position_.translation().x() + startpoint_.translation().x()) / 2;
   waypoint_homecoming_middle.translation().y() = (current_position_.translation().y() + startpoint_.translation().y()) / 2;
-  waypoint_homecoming_middle.translation().z() = waypoint_1_z_;
+  waypoint_homecoming_middle.translation().z() = waypoint_1_z_/2;
 
   Eigen::Affine3d waypoint_homecoming_end;
   waypoint_homecoming_end.translation().x() = startpoint_.translation().x();
   waypoint_homecoming_end.translation().y() = startpoint_.translation().y();
-  waypoint_homecoming_end.translation().z() = (startpoint_.translation().z() + 2.0);
+  waypoint_homecoming_end.translation().z() = (startpoint_.translation().z() + height_hovering_);
 
   checkpoint_ = waypoint_homecoming_end;
-  trajectoryPlannerThreeVertices(waypoint_homecoming_middle, waypoint_homecoming_end, v_max_ * 0.5, a_max_);
+  trajectoryPlannerThreeVertices(waypoint_homecoming_middle, waypoint_homecoming_end, v_max_*v_scaling_ascending_, a_max_);
   return true;
 }
 

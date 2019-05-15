@@ -108,6 +108,9 @@ class TrajectoryPlanner {
   double waypoint_3_z_; // [Meter] release / recovery height
   double v_max_; // [m/s] maximal velocity
   double a_max_; // [m/s^2] maximal acceleration
+  double v_scaling_descending_; // [-] scaling factor for velocity when descending
+  double v_scaling_ascending_; // [-] scaling factor for velocity when ascending
+  double v_scaling_recovery_traverse_; // [-] scaling factor for velocity when recovering box with net
   double height_drop_; // [Meter] variable drop height for release
   int steps_dynamixel_; // [-] incremental steps of dynamixel to release GPS box
   double height_overlapping_net_; // [Meter] [POSITIVE SIGN!] define how much of the net has to overlap with the hook during the recovery
