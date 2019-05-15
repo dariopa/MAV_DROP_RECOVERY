@@ -143,9 +143,7 @@ bool TrajectoryPlanner::checkPositionPayload(Eigen::Affine3d end_position, bool 
     ros::Duration(0.02).sleep();
     
     // Check distance to desired goal position
-    distance_to_goal = sqrt(pow(current_position_.translation().x() - end_position.translation().x(), 2) + 
-                            pow(current_position_.translation().y() - end_position.translation().y(), 2) + 
-                            pow(current_position_.translation().z() - end_position.translation().z(), 2));
+    distance_to_goal = (current_position_.translation() - end_position.translation()).norm();
     if (distance_to_goal <= tolerance_distance_) {
       ROS_WARN("TRAJECTORY TERMINATED.");
       return true;
