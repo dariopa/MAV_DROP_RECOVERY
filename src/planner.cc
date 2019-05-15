@@ -3,22 +3,20 @@
 TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_private) :
     nh_(nh),
     nh_private_(nh_private),
+    current_position_(Eigen::Affine3d::Identity()),
     safety_altitude_(2.5),
     approach_distance_(1.0),
     tolerance_distance_(0.05),
     start_trajectory_distance_(1.0),
     net_recovery_shift_(0.3),
     height_hovering_(1.5),
-    height_uav_gripper_(0.2),
-    height_uav_net_(0.4),
-    height_uav_magnet_(0.6),
-    height_box_antennaplate_(0.08),
-    height_box_hook_(0.18),
-    shift_uavantenna_box_x_(0.1),
-    shift_uavantenna_box_y_(0.2),
     payload_threshold_(8.0),
     payload_offset_(26),
-    current_position_(Eigen::Affine3d::Identity()) {
+    height_box_antennaplate_(0.08),
+    height_box_hook_(0.13),
+    height_rokubi_gripper_(0.12),
+    height_rokubi_net_(0.3),
+    height_rokubi_magnet_(0.4) {
 
   // create publisher for RVIZ markers
   pub_markers_ = nh.advertise<visualization_msgs::MarkerArray>("trajectory_markers", 0);
@@ -127,12 +125,19 @@ void TrajectoryPlanner::loadParameters() {
         nh_private_.getParam("height_drop", height_drop_) &&
         nh_private_.getParam("steps_dynamixel", steps_dynamixel_) &&
         nh_private_.getParam("height_overlapping_net", height_overlapping_net_) &&
-        nh_private_.getParam("height_overlapping_magnet", height_overlapping_magnet_))
+        nh_private_.getParam("height_overlapping_magnet", height_overlapping_magnet_) && 
+        nh_private_.getParam("trans_uav_rokubi_x", transformation_uav_rokubi_.translation().x()) && 
+        nh_private_.getParam("trans_uav_rokubi_y", transformation_uav_rokubi_.translation().y()) &&
+        nh_private_.getParam("trans_uav_rokubi_z", transformation_uav_rokubi_.translation().z()))
         << "Error loading parameters!";
   
-  // Configure end position to antenna of uav. 
-  waypoint_2_x_ -= shift_uavantenna_box_x_;
-  waypoint_2_y_ -= shift_uavantenna_box_y_;
+  // Configure end position of uav-antenna. 
+  waypoint_2_x_ -= transformation_uav_rokubi_.translation().x();
+  waypoint_2_y_ -= transformation_uav_rokubi_.translation().y();
+  waypoint_3_z_ -= transformation_uav_rokubi_.translation().z();
+  // ROS_WARN("%f", waypoint_2_x_);
+  // ROS_WARN("%f", waypoint_2_y_);
+  // ROS_WARN("%f", waypoint_3_z_);
   ROS_WARN("PARAMETERS LOADED!");
 }
 
@@ -310,7 +315,7 @@ bool TrajectoryPlanner::release(bool execute) {
   }
   // if checks are all good, then release
   // Descend
-  waypoint_descend.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_uav_gripper_ + height_drop_;
+  waypoint_descend.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_rokubi_gripper_ + height_drop_;
   trajectoryPlannerTwoVertices(waypoint_descend, v_max_*0.2, a_max_);
   if (execute) {
     executeTrajectory();
@@ -374,8 +379,8 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
 
     // Then, go down on pickup height
     Eigen::Affine3d waypoint_two = waypoint_one;
-    waypoint_two.translation().z() = waypoint_3_z_ + height_box_hook_ + height_uav_net_ - height_overlapping_net_;
-    trajectoryPlannerTwoVertices(waypoint_two, v_max_ * 0.2, a_max_);
+    waypoint_two.translation().z() = waypoint_3_z_ + height_box_hook_ + height_rokubi_net_ - height_overlapping_net_;
+    trajectoryPlannerTwoVertices(waypoint_two, v_max_*0.2, a_max_);
     if (execute) {
       executeTrajectory();
       ROS_WARN("DESCENDING ON APPROACHING POSITION.");
@@ -440,7 +445,7 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   // if checks are all good, then release
   // Pickup with magnet: first descend
   Eigen::Affine3d waypoint_one = current_position_;
-  waypoint_one.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_uav_magnet_ - height_overlapping_magnet_;
+  waypoint_one.translation().z() = waypoint_3_z_ + height_box_antennaplate_ + height_rokubi_magnet_ - height_overlapping_magnet_;
   trajectoryPlannerTwoVertices(waypoint_one, v_max_*0.3, a_max_);
   if (execute) {
     executeTrajectory();

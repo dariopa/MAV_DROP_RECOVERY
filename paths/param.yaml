@@ -12,3 +12,7 @@ steps_dynamixel: 24570 # incremental steps (Height / Screw_Pitch * Resolution = 
 # Recovery mechanism
 height_overlapping_net: 0.08 # for net [POSITIVE SIGN] 
 height_overlapping_magnet: 0.05 # for magnet [POSITIVE SIGN]
+# Configuration Parameters
+trans_uav_rokubi_x: 0.1
+trans_uav_rokubi_y: 0.0
+trans_uav_rokubi_z: -0.2
