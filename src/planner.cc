@@ -6,6 +6,7 @@ TrajectoryPlanner::TrajectoryPlanner(ros::NodeHandle& nh, ros::NodeHandle& nh_pr
     safety_altitude_(2.5),
     approach_distance_(1.0),
     tolerance_distance_(0.05),
+    start_trajectory_distance_(1.0),
     net_recovery_shift_(0.3),
     height_hovering_(1.5),
     height_uav_gripper_(0.2),
@@ -78,7 +79,7 @@ bool TrajectoryPlanner::trajectoryCallback(mav_drop_recovery::SetTargetPosition:
   }
   // HOMECOMING
   else if (request.command == "homecoming") {
-    function_execute = homecoming();
+    function_execute = homeComing();
   }
   else {
     ROS_WARN("INCORRECT_INPUT - CHECK AND RETRY");
@@ -270,8 +271,8 @@ bool TrajectoryPlanner::takeoff() {
     return false;
   }
   // only conduce takeoff when really in takeoff area, which is somewhere around 1 meters distant from the startpoint
-  if (abs(waypoint_takeoff.translation().x() - startpoint_.translation().x()) > 1.0 ||
-      abs(waypoint_takeoff.translation().y() - startpoint_.translation().y()) > 1.0 ) { 
+  if (abs(waypoint_takeoff.translation().x() - startpoint_.translation().x()) > start_trajectory_distance_ ||
+      abs(waypoint_takeoff.translation().y() - startpoint_.translation().y()) > start_trajectory_distance_ ) { 
     ROS_WARN("YOU'RE NOT IN THE TAKEOFF REGION - NOT EXECUTING!");
     return false;
   }
@@ -304,8 +305,8 @@ bool TrajectoryPlanner::release(bool execute) {
   Eigen::Affine3d waypoint_descend = current_position_;
 
   // only conduce release when really in release area, which is somewhere around 1 meters distant from the release point
-  if (abs(waypoint_descend.translation().x() - waypoint_2_x_) > 1.0 ||
-      abs(waypoint_descend.translation().y() - waypoint_2_y_) > 1.0 ) { 
+  if (abs(waypoint_descend.translation().x() - waypoint_2_x_) > start_trajectory_distance_ ||
+      abs(waypoint_descend.translation().y() - waypoint_2_y_) > start_trajectory_distance_ ) { 
     ROS_WARN("YOU'RE NOT IN THE RELEASE REGION - NOT EXECUTING!");
     return false;
   }
@@ -350,8 +351,8 @@ bool TrajectoryPlanner::release(bool execute) {
 bool TrajectoryPlanner::recoveryNet(bool execute) {
   Eigen::Affine3d waypoint_recovery = current_position_;
   // only conduce recovery when really in recovery area, which is somewhere around 1 meters distant from the recovery point
-  if (abs(waypoint_recovery.translation().x() - waypoint_2_x_) > 1.0 ||
-      abs(waypoint_recovery.translation().y() - waypoint_2_y_) > 1.0 ) { 
+  if (abs(waypoint_recovery.translation().x() - waypoint_2_x_) > start_trajectory_distance_ ||
+      abs(waypoint_recovery.translation().y() - waypoint_2_y_) > start_trajectory_distance_ ) { 
     ROS_WARN("YOU'RE NOT IN THE RECOVERY REGION - NOT EXECUTING!");
     return false;
   }
@@ -433,8 +434,8 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
 bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   Eigen::Affine3d waypoint_recovery = current_position_;
   // only conduce recovery when really in recovery area, which is somewhere around 1 meters distant from the recovery point
-  if (abs(waypoint_recovery.translation().x() - waypoint_2_x_) > 1.0 ||
-      abs(waypoint_recovery.translation().y() - waypoint_2_y_) > 1.0 ) { 
+  if (abs(waypoint_recovery.translation().x() - waypoint_2_x_) > start_trajectory_distance_ ||
+      abs(waypoint_recovery.translation().y() - waypoint_2_y_) > start_trajectory_distance_ ) { 
     ROS_WARN("YOU'RE NOT IN THE RECOVERY REGION - NOT EXECUTING!");
     return false;
   }
@@ -470,10 +471,10 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   }
 }
 
-bool TrajectoryPlanner::homecoming() {
+bool TrajectoryPlanner::homeComing() {
   // check if you're already home or not
-  if (abs(current_position_.translation().x() - startpoint_.translation().x()) < 1.0 &&
-      abs(current_position_.translation().y() - startpoint_.translation().y()) < 1.0 ) { 
+  if (abs(current_position_.translation().x() - startpoint_.translation().x()) < start_trajectory_distance_ &&
+      abs(current_position_.translation().y() - startpoint_.translation().y()) < start_trajectory_distance_ ) { 
     ROS_WARN("YOU'RE ALREADY HOME - NOT EXECUTING!");
     return false;
   }

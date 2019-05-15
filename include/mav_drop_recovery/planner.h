@@ -50,7 +50,7 @@ class TrajectoryPlanner {
   
   bool recoveryMagnet(bool execute);
 
-  bool homecoming();
+  bool homeComing();
 
   // Visualize the last planned trajectory
   bool visualizeTrajectory();
@@ -85,7 +85,8 @@ class TrajectoryPlanner {
   Eigen::Affine3d checkpoint_; // gives the point in checkPosition() to which the UAV has to be approached
   double safety_altitude_; // [Meter] meters above take-off height.
   double approach_distance_; // [Meter] distance from which gps will be approached
-  double tolerance_distance_; // [Meter] used in checkPosition();
+  double tolerance_distance_; // [Meter] control distance to check if you arrived at the desired goal position
+  double start_trajectory_distance_; // [Meter] won't let you start trajectory if: current_positon_ > start_position + start_trajectory_distance_
   double net_recovery_shift_; // [Meter] width of recovery net, required for recovery mode
   double height_hovering_; // [Meter] Hovering height above ground after release or recovery
   
@@ -98,13 +99,13 @@ class TrajectoryPlanner {
   double shift_uavantenna_box_x_; // [Meter] Shift in X-direction from antenna to centroid of gps box
   double shift_uavantenna_box_y_; // [Meter] Shift in Y-direction from antenna to the centroid of gps box.
   double payload_threshold_; // [Newton] Threshold which defines if gps box has been released / recovered. 
-  double payload_offset_; // [Newton] Offset which is given by the Rokubi sensor. 
+  double payload_offset_; // [Newton] Offset in z-direction which is given by the Rokubi sensor. 
 
   // Parameters from Yaml
   double waypoint_1_z_; // [Meter] takeoff height
   double waypoint_2_x_; // [Meter] x coord. for traverse
   double waypoint_2_y_; // [Meter] y coord. for traverse
-  double waypoint_3_z_; // [Meter] release /recovery height
+  double waypoint_3_z_; // [Meter] release / recovery height
   double v_max_; // [m/s] maximal velociti
   double a_max_; // [m/s^2] maximal acceleration
   double height_drop_; // [Meter] variable drop height for release
