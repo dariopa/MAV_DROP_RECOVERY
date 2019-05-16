@@ -125,6 +125,7 @@ void TrajectoryPlanner::loadParameters() {
         nh_private_.getParam("v_scaling_descending", v_scaling_descending_) &&
         nh_private_.getParam("v_scaling_ascending", v_scaling_ascending_) &&
         nh_private_.getParam("v_scaling_recovery_traverse", v_scaling_recovery_traverse_) &&
+        nh_private_.getParam("v_scaling_general_traverse", v_scaling_general_traverse_) &&
         nh_private_.getParam("height_drop", height_drop_) &&
         nh_private_.getParam("steps_dynamixel", steps_dynamixel_) &&
         nh_private_.getParam("height_overlapping_net", height_overlapping_net_) &&
@@ -148,7 +149,7 @@ bool TrajectoryPlanner::checkPositionPayload(Eigen::Affine3d end_position, bool 
   double distance_to_goal; // distance between acutal position and goal-position of drone in checkPositionPayload()
   while(true) {
     ros::spinOnce();
-    ros::Duration(0.02).sleep();
+    ros::Duration(0.01).sleep();
     
     // Check distance to desired goal position
     distance_to_goal = (current_position_.translation() - end_position.translation()).norm();
@@ -160,20 +161,24 @@ bool TrajectoryPlanner::checkPositionPayload(Eigen::Affine3d end_position, bool 
     // Check if you picked up something during recovery
     if (check_recovery_payload && payload_ > payload_threshold_) {
       ROS_WARN("YOU GRABBED ON GPS BOX - STOPPING TRAJECTORY!");
+      ros::spinOnce();
       end_position = current_position_;
+      end_position.translation().x() += 0.01; // Arbitrary value > 0, to be able to generate a trajectory
       end_position.translation().z() += 0.01; // Arbitrary value > 0, to be able to generate a trajectory
       trajectoryPlannerTwoVertices(end_position, v_max_*0.05, a_max_*0.1);
       executeTrajectory();
-      return true;
+      return false;
     }
 
     // Check if you touched the ground during the release
     if (check_release_payload && payload_ < payload_threshold_) {
       ROS_WARN("YOU LANDED ON THE GROUND - STOPPING TRAJECTORY!");
+      ros::spinOnce();
       end_position = current_position_;
       end_position.translation().z() += 0.01; // Arbitrary value > 0, to be able to generate trajectory
       trajectoryPlannerTwoVertices(end_position, v_max_*0.05, a_max_*0.1);
       executeTrajectory();
+      ros::Duration(2.0).sleep();
       return true;
     }
   }
@@ -303,7 +308,7 @@ bool TrajectoryPlanner::traverse() {
   waypoint_traverse.translation().x() = waypoint_2_x_; 
   waypoint_traverse.translation().y() = waypoint_2_y_;
   checkpoint_ = waypoint_traverse;
-  trajectoryPlannerTwoVertices(waypoint_traverse, v_max_, a_max_);
+  trajectoryPlannerTwoVertices(waypoint_traverse, v_max_*v_scaling_general_traverse_, a_max_);
   return true;
 }
 
@@ -380,7 +385,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
       waypoint_one.translation().x() -= approach_distance_; // If re-iteration required, then enter this if-condition again
     }
     waypoint_one.translation().y() += (net_recovery_shift_ * counter * direction_change);
-    trajectoryPlannerTwoVertices(waypoint_one, v_max_, a_max_);
+    trajectoryPlannerTwoVertices(waypoint_one, v_max_*v_scaling_general_traverse_, a_max_);
     if (execute) {
       executeTrajectory();
       ROS_WARN("STEPPING BACK ON TRAVERSATION PATH.");
@@ -404,7 +409,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     if (execute) {
       executeTrajectory();
       ROS_WARN("PICKING UP GPS BOX.");
-      if (checkPositionPayload(waypoint_three, true, false)) {
+      if (!checkPositionPayload(waypoint_three, true, false)) {
         break; // Go out of for-loop in checkPositionPayload()!
       }
     }

@@ -9,6 +9,7 @@ a_max: 0.7 # Maximum Acceleration
 v_scaling_descending: 0.2
 v_scaling_ascending: 0.2
 v_scaling_recovery_traverse: 0.1
+v_scaling_general_traverse: 0.5
 # Release mechanism
 height_drop: 0.1 # drop height for release mechanism
 steps_dynamixel: 24570 # incremental steps (Height / Screw_Pitch * Resolution = 6 mm / 1 mm * 4095)
