@@ -23,11 +23,11 @@ int main(int argc, char** argv) {
   ros::NodeHandle n;
   ros::NodeHandle nh_private("~");
   TrajectoryPlanner planner(n, nh_private);
-  ROS_WARN_STREAM("SLEEPING FOR 5s TO WAIT FOR CLEAR CONSOLE");
+  ROS_INFO("SLEEPING FOR 5s TO WAIT FOR CLEAR CONSOLE");
   ros::Duration(4.0).sleep();
   planner.loadParameters();
   planner.getFirstPose();
-  ROS_WARN_STREAM("READY TO GO!");
+  ROS_INFO("READY TO GO!");
 
   ros::spin();
 

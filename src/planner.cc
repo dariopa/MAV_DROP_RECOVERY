@@ -43,7 +43,7 @@ bool TrajectoryPlanner::loadParametersCallback(std_srvs::Empty::Request& request
 
 void TrajectoryPlanner::rokubiForceCallback(const geometry_msgs::WrenchStamped& msg) {
   payload_ = msg.wrench.force.z - payload_offset_;
-  // ROS_WARN("%f", payload_);
+  // ROS_INFO("%f", payload_);
   // ros::Duration(1.0).sleep();
 }
 
@@ -102,7 +102,7 @@ bool TrajectoryPlanner::dynamixelClient(int steps) {
   srv.request.addr_name = "Goal_Position";
   srv.request.value = steps;
   if (dynamixel_client_.call(srv)) {
-    ROS_WARN("DYNAMIXEL CALL SUCCESSFULL.");
+    ROS_INFO("DYNAMIXEL CALL SUCCESSFULL.");
     return true;
   }
   else {
@@ -139,10 +139,10 @@ void TrajectoryPlanner::loadParameters() {
   waypoint_2_x_ -= transformation_uav_rokubi_.translation().x();
   waypoint_2_y_ -= transformation_uav_rokubi_.translation().y();
   waypoint_3_z_ -= transformation_uav_rokubi_.translation().z();
-  // ROS_WARN("%f", waypoint_2_x_);
-  // ROS_WARN("%f", waypoint_2_y_);
-  // ROS_WARN("%f", waypoint_3_z_);
-  ROS_WARN("PARAMETERS LOADED!");
+  // ROS_INFO("%f", waypoint_2_x_);
+  // ROS_INFO("%f", waypoint_2_y_);
+  // ROS_INFO("%f", waypoint_3_z_);
+  ROS_INFO("PARAMETERS LOADED!");
 }
 
 bool TrajectoryPlanner::checkPositionPayload(Eigen::Affine3d end_position, bool check_recovery_payload, bool check_release_payload) {
@@ -154,13 +154,13 @@ bool TrajectoryPlanner::checkPositionPayload(Eigen::Affine3d end_position, bool 
     // Check distance to desired goal position
     distance_to_goal = (current_position_.translation() - end_position.translation()).norm();
     if (distance_to_goal <= tolerance_distance_) {
-      ROS_WARN("TRAJECTORY TERMINATED.");
+      ROS_INFO("TRAJECTORY TERMINATED.");
       return true;
     }
 
     // Check if you picked up something during recovery
     if (check_recovery_payload && payload_ > payload_threshold_) {
-      ROS_WARN("YOU GRABBED ON GPS BOX - STOPPING TRAJECTORY!");
+      ROS_INFO("YOU GRABBED ON GPS BOX - STOPPING TRAJECTORY!");
       ros::spinOnce();
       end_position = current_position_;
       end_position.translation().x() += 0.01; // Arbitrary value > 0, to be able to generate a trajectory
@@ -172,7 +172,7 @@ bool TrajectoryPlanner::checkPositionPayload(Eigen::Affine3d end_position, bool 
 
     // Check if you touched the ground during the release
     if (check_release_payload && payload_ < payload_threshold_) {
-      ROS_WARN("YOU LANDED ON THE GROUND - STOPPING TRAJECTORY!");
+      ROS_INFO("YOU LANDED ON THE GROUND - STOPPING TRAJECTORY!");
       ros::spinOnce();
       end_position = current_position_;
       end_position.translation().z() += 0.01; // Arbitrary value > 0, to be able to generate trajectory
@@ -334,7 +334,7 @@ bool TrajectoryPlanner::release(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_descend, v_max_*v_scaling_descending_, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("DESCENDING.");
+    ROS_INFO("DESCENDING.");
     checkPositionPayload(waypoint_descend, false, true);
   }
 
@@ -348,13 +348,13 @@ bool TrajectoryPlanner::release(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_ascend, v_max_*v_scaling_ascending_, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("ASCENDING.");
+    ROS_INFO("ASCENDING.");
     checkPositionPayload(waypoint_ascend);
   }
 
   // Check if gps box has been detached
   if (payload_ < payload_threshold_) {
-    ROS_WARN("GPS BOX IS DETACHED!");
+    ROS_INFO("GPS BOX IS DETACHED!");
   }
   else {
     ROS_WARN("PROBLEM WHILE DETACHING GPS BOX - RETRY!");
@@ -388,7 +388,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     trajectoryPlannerTwoVertices(waypoint_one, v_max_*v_scaling_general_traverse_, a_max_);
     if (execute) {
       executeTrajectory();
-      ROS_WARN("STEPPING BACK ON TRAVERSATION PATH.");
+      ROS_INFO("STEPPING BACK ON TRAVERSATION PATH.");
       checkPositionPayload(waypoint_one);
     }
 
@@ -398,7 +398,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     trajectoryPlannerTwoVertices(waypoint_two, v_max_*v_scaling_descending_, a_max_);
     if (execute) {
       executeTrajectory();
-      ROS_WARN("DESCENDING ON APPROACHING POSITION.");
+      ROS_INFO("DESCENDING ON APPROACHING POSITION.");
       checkPositionPayload(waypoint_two);
     }
 
@@ -408,7 +408,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     trajectoryPlannerTwoVertices(waypoint_three, v_max_*v_scaling_recovery_traverse_, a_max_);
     if (execute) {
       executeTrajectory();
-      ROS_WARN("PICKING UP GPS BOX.");
+      ROS_INFO("PICKING UP GPS BOX.");
       if (!checkPositionPayload(waypoint_three, true, false)) {
         break; // Go out of for-loop in checkPositionPayload()!
       }
@@ -420,17 +420,17 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
     trajectoryPlannerTwoVertices(waypoint_four, v_max_*v_scaling_ascending_, a_max_);
     if (execute) {
       executeTrajectory();
-      ROS_WARN("ELEVATING.");
+      ROS_INFO("ELEVATING.");
       checkPositionPayload(waypoint_four);
     }
 
     // Check if you loaded the GPS Box
     if (payload_ > payload_threshold_) {
-      ROS_WARN("GPS BOX SUCCESSFULLY PICKED UP!");
+      ROS_INFO("GPS BOX SUCCESSFULLY PICKED UP!");
       break;
     }
     else {
-      ROS_WARN("GPS BOX MISSED -RETRY!");
+      ROS_WARN("GPS BOX MISSED - RETRY!");
       direction_change *= -1;
     }
   }
@@ -443,7 +443,7 @@ bool TrajectoryPlanner::recoveryNet(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_five, v_max_*v_scaling_ascending_, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("GO TO POSITION FOR HOMECOMING.");
+    ROS_INFO("GO TO POSITION FOR HOMECOMING.");
     checkPositionPayload(waypoint_five);
   }
   return true;
@@ -464,7 +464,7 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_one, v_max_*v_scaling_descending_, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("DESCENDING.");
+    ROS_INFO("DESCENDING.");
     checkPositionPayload(waypoint_one);
   }
 
@@ -474,17 +474,17 @@ bool TrajectoryPlanner::recoveryMagnet(bool execute) {
   trajectoryPlannerTwoVertices(waypoint_two, v_max_*v_scaling_ascending_, a_max_);
   if (execute) {
     executeTrajectory();
-    ROS_WARN("ASCENDING.");
+    ROS_INFO("ASCENDING.");
     checkPositionPayload(waypoint_two);
   }
 
   // Check if you loaded the GPS Box
   if (payload_ > payload_threshold_) {
-    ROS_WARN("GPS BOX SUCCESSFULLY PICKED UP!");
+    ROS_INFO("GPS BOX SUCCESSFULLY PICKED UP!");
     return true;
   }
   else {
-    ROS_WARN("GPS BOX MISSED -RETRY!");
+    ROS_WARN("GPS BOX MISSED - RETRY!");
     return false;
   }
 }
@@ -493,7 +493,7 @@ bool TrajectoryPlanner::homeComing() {
   // check if you're already home or not
   if (abs(current_position_.translation().x() - startpoint_.translation().x()) < start_trajectory_distance_ &&
       abs(current_position_.translation().y() - startpoint_.translation().y()) < start_trajectory_distance_ ) { 
-    ROS_WARN("YOU'RE ALREADY HOME - NOT EXECUTING!");
+    ROS_INFO("YOU'RE ALREADY HOME - NOT EXECUTING!");
     return false;
   }
 
